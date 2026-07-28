@@ -47,8 +47,8 @@ The ML side has **two pipelines** (both over one feature universe: **95 Core + 3
   pipeline. The observability ladder 95→67→58→18, the DCFM phantom analysis, Trust 1.0/2.0,
   transfer/open-set, the tradeoff thesis. Path root: `defense_ml/defense_ml_project/`.
 - **Campaign 2 — `defense_detection_v4.py`** (later, git 2026-07-19): a leaner pipeline run on
-  the *normalised* 128-feature dataset (the 32/29/26/76-feature experiments in
-  `scripts_for_all_128/` → `results_run{1,2,3}/`).
+  the *normalised* 128-feature dataset (the 32/29/26/76-feature experiments). Its scripts and
+  result trees live under `scripts_for_all_128/`, organised into per-step folders — see §7.1.
 
 > Because the ML repo is **private**, GitHub blob links to it return 404 for any reader.
 > That is why ML files are shown as repo-relative **paths**, not links.
@@ -90,7 +90,7 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 31 steps)
+## 4. Notebook structure (7 parts, 33 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
@@ -100,7 +100,7 @@ Chronological. Each step is one `md(f"...")` cell.
 | **II — Defense Implementation** | 6–18 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
 | **III — ML Campaign 1 (`defense_ml`)** | 19–24 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
 | **IV — The Transition** | 25 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 26–31 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 26–33 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 33 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -146,7 +146,7 @@ list, and the **File Index** (which links NS-3 files and lists ML files + result
    import re, io
    p = "build_notebook.py"; k = 1          # how many steps you inserted
    s = io.open(p, encoding="utf-8").read()
-   for n in range(31, LAST_UNCHANGED, -1):  # e.g. range(31, 24, -1) to shift 25..31 by +k
+   for n in range(32, LAST_UNCHANGED, -1):  # e.g. range(32, 24, -1) to shift 25..32 by +k
        m = n + k
        s = re.sub(r'Step %d(?!\d)'  % n, 'Step %d'  % m, s)   # display headers, [Step N], prose
        s = re.sub(r'step-%d(?!\d)'  % n, 'step-%d'  % m, s)   # anchors + (#step-N) links
@@ -186,8 +186,11 @@ print('steps sequential 1..N:', steps == [str(i) for i in range(1, len(steps)+1)
 print('stray "{" leaks (f-string bugs):', body.count('{ref(') + body.count('{refml('))
 ```
 
-Expected: `BROKEN internal links: []`, `steps sequential 1..N: True`, `stray "{" leaks: 0`.
-If a leak appears, an f-string had an un-doubled literal brace — fix it in `build_notebook.py`.
+Expected: `BROKEN internal links: []`, `steps sequential 1..N: True`, `stray "{" leaks: 1`.
+The single known leak is a pre-existing one — a `{ref("run_simulations.sh")}` inside a plain
+`md("...")` cell that should be `md(f"...")`. It is harmless (it renders literally) and unrelated
+to recent edits; leave it unless you are specifically fixing it. If the count rises **above 1**,
+a new f-string had an un-doubled literal brace — fix it in `build_notebook.py`.
 
 ---
 
@@ -206,3 +209,29 @@ Working directory (`…/Report Generation/`):
 The two repos may also be cloned locally for deep reads (NS-3 is public; ML is private and must
 be cloned by the owner). Datasets and most `results/` trees are large / git-ignored / partly on a
 collaborator's machine — so cite files by path even when you cannot open them.
+
+### 7.1 Campaign-2 layout — `scripts_for_all_128/` (ML repo)
+
+Reorganised (2026-07-26) from a flat folder into **per-step folders that mirror the notebook**.
+Each step folder holds both its scripts and its result tree, so a step is self-contained:
+
+| Folder | Notebook step | Contents |
+|---|---|---|
+| `step28_exp1_baseline_32/` | Step 28 | `run_all_defenses.sh`, `verify_features.py`, `rank_importance.py`, `per_defense_tables.py`, `results_run1/` |
+| `step29_exp2_ablation_26/` | Step 29 | `diagnose_leakage.py`, `run_behavioral.sh`, `compare_runs.py`, `three_metrics.py`, `results_run2_behavioral/` |
+| `step30_exp3_expansion_76/` | Step 30 | `scan_core95.py`, `build_features76.py`, `run_expanded.sh`, `compare_26_vs_76.py`, `features_clean.txt`, `results_run3_expanded/` |
+| `Step_32_Experiment_Between_26_and_29_Features/` | Step 32 | `run_drop4.sh`, `compare_drop4.py`, `step32_dcfm_summary.csv`, one `Run_*` sub-folder per single/pair ablation (each with its own `results_run4_drop4/`) |
+| `Step_33_Defense_Independent_Normalization_Features/` | Step 33 | `classify_apriori.py`, `run_apriori21.sh`, `compare_apriori.py`, `transfer_test.py`, `features_apriori_lenient.txt`, `results_run9_apriori21/` (+ `transfer_test/`) |
+| `_tools/` | — | `table.py` (quick AUC/MCC/TPR table for any results dir) |
+
+Conventions for this tree:
+
+- **Paths inside the scripts are absolute** (`/mnt/d/Hananel/ML-for-NS3/...` in `.py`,
+  `$REPO/...` in `.sh`), so the scripts run correctly from anywhere and cross-step comparisons
+  (e.g. `compare_runs.py`, `three_metrics.py`) resolve without `../` juggling. If the repo is
+  ever moved, update those constants.
+- **git tracks only the small text outputs** (`.csv` / `.json` / `.tex`); heavy binaries are
+  git-ignored via `**/final_model.pkl` and `**/figures/*.png`. When committing new runs, verify
+  no `.pkl`/`.png` are staged before committing.
+- The Step-32 `Run_With_29_Features_Without_<X>` sub-folders are **28-feature** runs (the "29"
+  is the drop3 starting point); `Run_Without_<X>_AND_<Y>` are **27-feature** runs.

@@ -263,25 +263,27 @@ md("""
 29. [Experiment 2 — univariate screen and ablation to 26 features](#step-29)
 30. [Experiment 3 — expansion to 76 features; leakage returns](#step-30) — 2026-07-19
 31. [Root-cause analysis: the normalisation hypothesis](#step-31)
+32. [Experiment 2b — single-feature ablation of the DCFM cluster](#step-32) — 2026-07-24
+33. [Defense-independent features: normalisation leak, transfer, and the final 21-feature set](#step-33) — 2026-07-27
 
 **Part VI — Synthesis**
 
-32. [Open questions](#open-questions)
-33. [Planned full-scale campaign](#full-campaign)
+34. [Open questions](#open-questions)
+35. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-34. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-35. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-36. [`scratch/` — feature schema and simulations](#guide-scratch)
-37. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-38. [Repository-root batch scripts](#guide-scripts)
-39. [Reproducing the dataset — the exact commands](#guide-repro)
+36. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+37. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+38. [`scratch/` — feature schema and simulations](#guide-scratch)
+39. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+40. [Repository-root batch scripts](#guide-scripts)
+41. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-40. [References](#references)
-41. [File index](#file-index)
+42. [References](#references)
+43. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -2015,7 +2017,7 @@ dataset cannot realise.
 md(f"""
 <a id="step-28" name="step-28"></a>
 ## Step 28 — Experiment 1: baseline on 32 features; leakage discovered
-**Runtime:** 80 min (8 runs) · **Results:** `results_run1/`
+**Runtime:** 80 min (8 runs) · **Results:** `scripts_for_all_128/step28_exp1_baseline_32/results_run1/`
 
 ### Pipeline
 {refml(ML_PIPE)} implements:
@@ -2078,14 +2080,14 @@ under mobility is non-linear** and is not recoverable by linear decision boundar
 
 ### Sources
 - Pipeline: {refml(ML_PIPE)}
-- Scripts: `scripts_for_all_128/run_all_defenses.sh`, `rank_importance.py`, `per_defense_tables.py`, `verify_features.py`
-- Outputs (`results_run1/`): `per_defense_all_models.csv`, `importance_overview.csv`, `univariate_auc_matrix.csv`; and per condition `summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`
+- Scripts: `scripts_for_all_128/step28_exp1_baseline_32/run_all_defenses.sh`, `rank_importance.py`, `per_defense_tables.py`, `verify_features.py`
+- Outputs (`scripts_for_all_128/step28_exp1_baseline_32/results_run1/`): `per_defense_all_models.csv`, `importance_overview.csv`, `univariate_auc_matrix.csv`; and per condition `summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`
 """)
 
 md("""
 <a id="step-29" name="step-29"></a>
 ## Step 29 — Experiment 2: univariate screen and ablation to 26 features
-**Runtime:** ~160 min (16 runs) · **Results:** `results_run2_behavioral/`
+**Runtime:** ~160 min (16 runs) · **Results:** `scripts_for_all_128/step29_exp2_ablation_26/results_run2_behavioral/`
 
 ### The screen **[VERIFIED]**
 **Method.** For each feature *f* and condition *c*, compute `AUC(f, defense_enabled)`
@@ -2193,14 +2195,14 @@ different criterion could select a different model.
    substantially overstates practical detectability.
 
 ### Sources
-- Scripts: `scripts_for_all_128/diagnose_leakage.py`, `run_behavioral.sh`, `compare_runs.py`, `three_metrics.py`
-- Outputs (`results_run2_behavioral/`): `comparison_32_vs_29_vs_26.csv`, `three_metrics.csv`, `core95_scan.csv`; and `drop3/` + `drop6/` (8 condition dirs each)
+- Scripts: `scripts_for_all_128/step29_exp2_ablation_26/diagnose_leakage.py`, `run_behavioral.sh`, `compare_runs.py`, `three_metrics.py`
+- Outputs (`scripts_for_all_128/step29_exp2_ablation_26/results_run2_behavioral/`): `comparison_32_vs_29_vs_26.csv`, `three_metrics.csv`, `core95_scan.csv`; and `drop3/` + `drop6/` (8 condition dirs each)
 """)
 
 md("""
 <a id="step-30" name="step-30"></a>
 ## Step 30 — Experiment 3: expansion to 76 features; leakage returns
-**Runtime:** 134 min (8 runs) · **Results:** `results_run3_expanded/`
+**Runtime:** 134 min (8 runs) · **Results:** `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/`
 
 ### Motivation
 The 26-feature baseline is clean but weak. Could the **Core-95** set supply legitimate
@@ -2314,9 +2316,9 @@ single column is compensated by the others. **The DCFM/mobile diagnosis is incon
 by this method** and requires grouped permutation or leave-one-group-out.
 
 ### Sources
-- Scripts: `scripts_for_all_128/scan_core95.py`, `build_features76.py`, `run_expanded.sh`, `compare_26_vs_76.py`
-- Outputs: `results_run3_expanded/compare_26_vs_76.csv` (+ 8 condition dirs); generated feature list `scripts_for_all_128/features_clean.txt`
-- Generated list: `scripts_for_all_128/features_clean.txt`
+- Scripts: `scripts_for_all_128/step30_exp3_expansion_76/scan_core95.py`, `build_features76.py`, `run_expanded.sh`, `compare_26_vs_76.py`
+- Outputs: `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/compare_26_vs_76.csv` (+ 8 condition dirs); generated feature list `scripts_for_all_128/step30_exp3_expansion_76/features_clean.txt`
+- Generated list: `scripts_for_all_128/step30_exp3_expansion_76/features_clean.txt`
 """)
 
 md("""
@@ -2401,6 +2403,356 @@ Compute, for each condition:
 # ==========================================================================
 # PART IV
 # ==========================================================================
+md(f"""
+<a id="step-32" name="step-32"></a>
+## Step 32 — Experiment 2b: single- and pair-feature ablation of the DCFM cluster
+**Date:** 2026-07-24 – 2026-07-26
+
+### Motivation
+[Step 29](#step-29) could only compare two points: removing the two highest-MAX cluster
+features (drop3 -> 29, DCFM barely moved) and removing all three cluster members
+(drop6 -> 26, DCFM collapsed to ~0.86). That leaves the middle unexplored. Is any **single**
+cluster member responsible for the DCFM leak? Is the cluster **redundant** (each member
+individually removable)? Or is there a **hierarchy** — some members stronger than others?
+This step fills the gap with two families of runs on the same 8 conditions, same
+`--drop-features` mechanism, leakage guard, and Dummy=0.5000 baseline as [Step 29](#step-29):
+- **single ablation** — drop3 + one cluster feature -> **28 features** (3 runs)
+- **pair ablation** — drop3 + two cluster features -> **27 features** (3 runs)
+
+The three cluster features are `AverageMprCount` (Mpr), `AverageAdvertisedLinksPerTCMessage`
+(Adv), and `NormalizedRoutingLoad` (NRL). Only DCFM is affected — each is a DCFM-only signal
+(univariate AUC ~0.5 elsewhere) — so the tables below report the two DCFM conditions; the
+other six conditions stayed within noise of their [Step 29](#step-29) values.
+
+### Single-feature ablation (28 features) — DCFM
+Reference: drop3 (29) is DCFM static/mobile = 0.9721 / 0.9894; drop6 (26) ~0.86 / ~0.88.
+
+| Removed | Cond | AUC | MCC | TPR@1% | Feature the model moved to | share |
+|---|---|---:|---:|---:|---|---:|
+| Mpr | static | 0.9714 | 0.8388 | 0.7980 | `sqrt_NormalizedRoutingLoad` | 0.15 |
+| Mpr | mobile | 0.9870 | 0.8930 | 0.8277 | `AverageAdvertisedLinksPerTCMessage` | 0.28 |
+| Adv | static | 0.9739 | 0.8553 | 0.7897 | `NormalizedRoutingLoad` | 0.49 |
+| Adv | mobile | 0.9781 | 0.8726 | 0.8501 | `AverageMprCount` | 0.44 |
+| NRL | static | 0.9688 | 0.8286 | 0.7641 | `AverageMprCount` | 0.63 |
+| NRL | mobile | 0.9789 | 0.8591 | 0.7876 | `AverageMprCount` | 0.66 |
+
+Every single removal left DCFM at ~0.97–0.99, and the "moved-to" column shows the model
+migrating to whichever cluster members remain — the whack-a-mole of [Step 30](#step-30) made
+explicit.
+
+### Pair ablation (27 features) — DCFM
+| Removed (remaining) | Cond | AUC | MCC | TPR@1% | Dominant feature | share |
+|---|---|---:|---:|---:|---|---:|
+| Mpr+Adv (**NRL left**) | static | 0.9636 | 0.8266 | 0.7944 | `sqrt_NormalizedRoutingLoad` | 0.15 |
+| Mpr+Adv (**NRL left**) | mobile | 0.9742 | 0.8523 | 0.7402 | `NormalizedRoutingLoad` | 0.76 |
+| Adv+NRL (**Mpr left**) | static | 0.9657 | 0.8349 | 0.7287 | `AverageMprCount` | 0.78 |
+| Adv+NRL (**Mpr left**) | mobile | 0.9655 | 0.8250 | 0.7749 | `AverageMprCount` | 0.80 |
+| Mpr+NRL (**Adv left**) | static | **0.8703** | **0.5789** | **0.2926** | `interact_Throughput_AverageEndToEndDelay` | 0.22 |
+| Mpr+NRL (**Adv left**) | mobile | **0.9364** | **0.7225** | **0.5172** | `AverageAdvertisedLinksPerTCMessage` | 0.71 |
+
+### Comparison — DCFM AUC across the whole ladder
+| Features | Set | static | mobile |
+|---|---|---:|---:|
+| 32 | full | 0.9874 | 0.9983 |
+| 29 | drop3 | 0.9721 | 0.9894 |
+| 28 | drop3 − Mpr | 0.9714 | 0.9870 |
+| 28 | drop3 − Adv | 0.9739 | 0.9781 |
+| 28 | drop3 − NRL | 0.9688 | 0.9789 |
+| 27 | + only NRL left | 0.9636 | 0.9742 |
+| 27 | + only Mpr left | 0.9657 | 0.9655 |
+| 27 | + only Adv left | **0.8703** | **0.9364** |
+| 26 | drop6 (none left) | ~0.86 | ~0.88 |
+
+### Findings
+**[VERIFIED]** No single cluster feature is necessary. Removing any one (28 features) leaves
+DCFM at ~0.97–0.99; the model migrates to the members that remain.
+
+**[VERIFIED]** The cluster is **not** uniformly redundant — there is a hierarchy. When only one
+member is left (27 features): `NormalizedRoutingLoad` alone holds DCFM at ~0.96–0.97, and
+`AverageMprCount` alone holds it at ~0.966; but `AverageAdvertisedLinksPerTCMessage` alone is
+**not** sufficient — DCFM/static falls to 0.870 (TPR@1% 0.29) and the model starts reaching for
+non-cluster interaction terms. So `Mpr` and `NRL` are the strong members; `Adv` is weak.
+
+**[VERIFIED]** The effective core of the leak is the pair `{{Mpr, NRL}}`: as long as either is
+present DCFM stays ~0.97; only removing both (leaving Adv) begins the collapse, and removing all
+three (drop6 -> 26) completes it at ~0.86. This refines [Step 29](#step-29)'s drop6 result,
+which was stricter than necessary, and is consistent with [Step 31](#step-31): the members are
+interchangeable carriers of the same normalisation-denominator signal, not independent features.
+
+> **Naming note:** the single-run sub-folders are named `Run_With_29_Features_Without_<X>`, but
+> each drops a 4th feature and is therefore a **28-feature** run; the "29" refers to the drop3
+> starting point. The pair-run folders `Run_Without_<X>_AND_<Y>` are **27-feature** runs.
+
+### Sources
+- Runner {refml("scripts_for_all_128/Step_32_Experiment_Between_26_and_29_Features/run_drop4.sh", "run_drop4.sh")}
+  (takes the feature(s) to remove as arguments); comparison
+  {refml("scripts_for_all_128/Step_32_Experiment_Between_26_and_29_Features/compare_drop4.py", "compare_drop4.py")}
+- Pipeline {refml(ML_PIPE)}
+- Single-ablation outputs (28): {refml("scripts_for_all_128/Step_32_Experiment_Between_26_and_29_Features/Run_With_29_Features_Without_AverageMprCount/results_run4_drop4/")},
+  and the `_Without_AverageAdvertisedLinksPerTCMessage` / `_Without_NormalizedRoutingLoad` siblings
+- Pair-ablation outputs (27): {refml("scripts_for_all_128/Step_32_Experiment_Between_26_and_29_Features/Run_Without_MprCount_AND_Advertised/results_run4_drop4/")},
+  `Run_Without_Adv_AND_NRL`, and `Run_Without_MprCount_AND_NRL`
+- Combined DCFM summary: {refml("scripts_for_all_128/Step_32_Experiment_Between_26_and_29_Features/step32_dcfm_summary.csv", "step32_dcfm_summary.csv")}
+""")
+
+md(f"""
+<a id="step-33" name="step-33"></a>
+## Step 33 — Defense-independent features: from normalisation leakage to an observable, implementation-general set
+**Date:** 2026-07-27
+
+### Motivation
+[Step 31](#step-31) left the normalisation hypothesis **untested and blocking**: no
+[Step 29](#step-29) result was final until we knew whether the near-perfect scores came from
+defense *behaviour* or from a normalisation *denominator* that moves with the defense. With the
+feature schema {ref(FEATURES)} and the two defense implementations {ref(D_FPNT)} and
+{ref(D_GCOP)} in hand, we could finally settle this from source and then build a final feature
+set justified on first principles rather than on measured performance.
+
+---
+
+### A. Why normalisation created the leak — [VERIFIED from source]
+Most Core/V2 features are *normalised* (divided by something) so they generalise across network
+sizes. The hidden assumption is that the **denominator is a property of the network, not of the
+defense**. Reading {ref(FEATURES)} shows that assumption breaks for three denominators, and the
+break is exactly aligned with what each defense does on the wire:
+
+- **`AvgTxPacketSize`** = a constant (the data packet size) ÷ **mean size of all packets
+  *including control messages*.** FPNT piggybacks a 3-byte evaluation vector per advertised
+  neighbour onto every TC message ({ref(D_FPNT)}). When FPNT is on, control messages grow, the
+  denominator grows, and — because the numerator is frozen — *all* the variance is FPNT's TC
+  padding. The feature is labelled "data packet size" but measures control-message size.
+- **`nObs`** = the count of distinct observed addresses, the denominator of the whole
+  MPR / advertised-links family. DCFM/GCOP advertises a fictitious address (`main+65536`) inside
+  the node's own TC ({ref(D_GCOP)}); every injected address inflates `nObs`, so every feature
+  divided by it inherits a DCFM signal regardless of its numerator.
+- **`graphN`** = the advertised-graph node count. The same fictitious addresses appear in the
+  advertised graph, so graph-structure features divided by `graphN` shift too — in **both**
+  mobility regimes.
+
+Because many features share one denominator, the leak is **collective**: removing one feature
+just moves it to the next feature that divides by the same quantity. This is precisely the
+[Step 30](#step-30) whack-a-mole and the interchangeable `Mpr`/`NRL` carriers of
+[Step 32](#step-32) — they were never independent features, only different numerators over the
+same contaminated denominator.
+
+**The fix (this step):** keep only features whose normalisation *cannot* carry a defense signal
+— those that are **scale-free by construction** (ratios, coefficients of variation, standardised
+moments, Gini, relative entropy) or divided by a **genuine constant** (the observer's own window
+length). Everything divided by `nObs`, `graphN`, or the packet-size mean is dropped. **59
+features** survive this audit; the ~69 excluded features are removed *in aggregate* for one
+reason — a defense-sensitive or non-neutral observed denominator — not case by case.
+
+**The 59 defense-independent ("green") features**, by family:
+- *Per-node TC volume / shape:* `PerNodeTcRateCv`, `PerNodeTcBytesCv`, `PerNodeTcBytesGini`
+- *TC size & advertised-link shape:* `TcMessageSizeCv`, `TcMessageSizeP95ToMeanRatio`,
+  `AdvertisedLinksPerTcCv`, `AdvertisedLinksPerTcP95ToMeanRatio`
+- *TC sequence / content / validity:* `TcAnsnIncrementMean`, `TcAnsnSkipRatePerTc`,
+  `TcMessageContentEntropyNorm`, `TcVtimeMean`, `TcVtimeStd`
+- *MPR:* `MprSelectorCountPerTcCv`
+- *TC timing & origination rate:* `TcInterArrivalMean`, `TcInterArrivalStd`, `TcInterArrivalP95`,
+  `TcBurstinessHurst`, `ControlMessageInterArrivalSkew`, `ControlMessageInterArrivalKurtosis`,
+  `TcOriginationRateMin`, `TcOriginationRateMean`, `TcOriginationRateStd`, `TcOriginationRateMax`
+- *Address entropy:* `TcSenderAddressEntropyNorm`, `TcAdvertisedAddressEntropyNorm`
+- *Packet-size distribution:* `PacketSizeDistributionSkew`, `PacketSizeDistributionKurtosis`
+- *Advertised-graph structure:* `AdvertisedDegreeCv`, `AdvertisedDegreeSkew`,
+  `AdvertisedDegreeKurtosis`, `AdvertisedClusteringCoefficient`, `AdvertisedRadiusToDiameterRatio`,
+  `AdvertisedGraphDensity`, `EdgePersistenceFraction`
+- *MAC-local (own radio):* `Layer2RetransmissionRate`, `ChannelBusyTimeFraction`
+- *Paths / hops (data-plane):* `ObservedHopCountCv`, `PathChangesPerFlowPerSecond`
+- *Latency / delivery (data-plane):* `EndToEndLatencyCv`, `JitterToLatencyRatio`,
+  `DeliveredToSentBytesRatio`, `AverageJitter`, `PacketDeliveryRatio`, `PacketLossRatio`,
+  `Throughput`, `RxTxPacketRatio`
+- *Flow-level (data-plane):* `AvgFlowDuration`, `FlowDurationStd`, `AvgFlowJitter`,
+  `AvgFlowLossRate`, `FlowThroughputStd`, `FlowDelayStd`, `FlowJitterStd`, `FlowLossRateStd`,
+  `AvgTxBytesPerFlow`, `AvgRxBytesPerFlow`, `AvgTxPacketsPerFlow`, `AvgRxPacketsPerFlow`,
+  `AvgRxPacketSize`
+
+Trained with the pipeline ({refml(ML_PIPE)}) on all 8 conditions, the 59-feature set preserves
+FPNT/DCFM detection with the denominator leak gone (see the Results table below).
+
+---
+
+### B. Transfer test → the 27 that generalise — [VERIFIED]
+A clean feature can still score perfectly *within* a single frozen topology (N=50) for the wrong
+reason. Since **leakage does not survive a change of conditions but a genuine signal does**, we
+trained on one mobility regime and tested on the other (static ↔ mobile), per defense, using
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")}.
+Selecting per-feature survivors (target ROC-AUC ≥ 0.75 on the held-out regime for at least one
+defense) with
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/build_final_set.py", "build_final_set.py")}
+gives **27 features**:
+
+| # | Feature | Carrier defense | Transfer AUC |
+|---|---|---|---:|
+| 1 | `TcAdvertisedAddressEntropyNorm` | dcfm | 0.956 |
+| 2 | `TcMessageSizeCv` | fpnt | 0.946 |
+| 3 | `AdvertisedGraphDensity` | dcfm | 0.942 |
+| 4 | `PathChangesPerFlowPerSecond` | fpnt | 0.938 |
+| 5 | `ChannelBusyTimeFraction` | dcfm | 0.925 |
+| 6 | `AdvertisedDegreeCv` | dcfm | 0.915 |
+| 7 | `PerNodeTcBytesGini` | fpnt | 0.914 |
+| 8 | `ControlMessageInterArrivalKurtosis` | dcfm | 0.905 |
+| 9 | `ControlMessageInterArrivalSkew` | dcfm | 0.904 |
+| 10 | `PacketSizeDistributionKurtosis` | dcfm | 0.902 |
+| 11 | `PerNodeTcBytesCv` | fpnt | 0.882 |
+| 12 | `PacketSizeDistributionSkew` | dcfm | 0.878 |
+| 13 | `EdgePersistenceFraction` | watchdog | 0.854 |
+| 14 | `TcMessageContentEntropyNorm` | watchdog | 0.850 |
+| 15 | `TcInterArrivalMean` | dcfm | 0.847 |
+| 16 | `TcMessageSizeP95ToMeanRatio` | fpnt | 0.846 |
+| 17 | `Layer2RetransmissionRate` | dcfm | 0.841 |
+| 18 | `TcInterArrivalP95` | dcfm | 0.812 |
+| 19 | `AdvertisedDegreeKurtosis` | dcfm | 0.806 |
+| 20 | `ObservedHopCountCv` | dcfm | 0.794 |
+| 21 | `TcInterArrivalStd` | dcfm | 0.781 |
+| 22 | `TcOriginationRateMean` | watchdog | 0.774 |
+| 23 | `TcOriginationRateStd` | watchdog | 0.772 |
+| 24 | `TcOriginationRateMin` | watchdog | 0.771 |
+| 25 | `AverageJitter` | fpnt | 0.756 |
+| 26 | `JitterToLatencyRatio` | fpnt | 0.756 |
+| 27 | `AvgFlowJitter` | fpnt | 0.755 |
+
+At the **whole-set** level the split between defenses is stark: FPNT transfers at ROC-AUC 1.000
+in both directions and DCFM at 0.907 / 0.649, but **TRUST and WATCHDOG collapse to ~0.50
+(random)** — their in-condition scores were single-topology inflation, not generalising signal.
+
+---
+
+### C. Which of the 27 are observable by a single node — the 22 — [reasoned, not re-run]
+The passive attacker is a single node in promiscuous mode (the Watchdog observer model).
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_observability.py", "classify_observability.py")}
+classifies each of the 27 by *how it is computed* in {ref(FEATURES)}. Because TC is flooded
+network-wide, TC-derived and reconstructed-advertised-graph features are observable; but five
+features are computed from multi-hop **data-plane** traffic (the extractor is fed a latency value
+and a last-forwarder TTL that require seeing both ends of a flow) and are therefore **not**
+observable by one node:
+
+> **Removed as GLOBAL (5):** `PathChangesPerFlowPerSecond`, `ObservedHopCountCv`, `AverageJitter`,
+> `JitterToLatencyRatio`, `AvgFlowJitter`.
+
+The remaining **22** are single-node observable. **Note:** the learning pipeline was **not**
+re-run on this 22-feature set; it is a classification result used to reach the final set in §E.
+
+---
+
+### D. Which of the 27 are implementation-general — the 8 — [reasoned, not re-run]
+A signature is only useful if *any* faithful implementation of the defense would produce it, not
+just our specific code.
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_implementation.py", "classify_implementation.py")}
+applies this using the mechanisms in {ref(D_FPNT)} (FPNT enlarges every TC) and {ref(D_GCOP)}
+(DCFM advertises **one** fictitious address inside existing TC — it adds **no** channel traffic
+and does **not** change TC timing; the code's own comments warn that spurious hexagon detections
+distort feature vectors). By that test, channel/MAC/timing signatures for DCFM are artefacts, and
+the **behaviour-general core is 8 features**:
+
+| Feature | Defense mechanism (any faithful implementation) |
+|---|---|
+| `TcMessageSizeCv` | FPNT enlarges every TC message |
+| `TcMessageSizeP95ToMeanRatio` | FPNT enlarges TC (size-distribution shift) |
+| `PerNodeTcBytesGini` | FPNT adds per-neighbour bytes to TC |
+| `PerNodeTcBytesCv` | FPNT adds per-neighbour bytes to TC |
+| `TcAdvertisedAddressEntropyNorm` | DCFM injects fictitious advertised addresses |
+| `AdvertisedGraphDensity` | DCFM adds nodes/edges to the advertised graph |
+| `AdvertisedDegreeCv` | DCFM perturbs advertised-graph degrees |
+| `AdvertisedDegreeKurtosis` | DCFM perturbs advertised-graph degrees |
+
+These map exactly onto the two loud defenses' defining behaviours (FPNT enlarges TC; DCFM injects
+addresses/structure), and cover **no** TRUST or WATCHDOG signature — those defenses have no
+control-plane mechanism a general feature could catch. **Note:** the pipeline was **not** re-run
+on this 8-feature core either; like the 22, it is a classification result, reported to show how
+tight the behavioural core is.
+
+---
+
+### E. The final set — 21 features (observable AND implementation-general) — [VERIFIED]
+Rather than chain §B→§C→§D (which lets the empirical transfer filter pre-decide the space), the
+final set applies the two **a-priori** criteria — single-node observability and
+implementation-generality (lenient: kept if a *reasonable* FPNT/DCFM implementation would move
+it) — **directly to all 59 green features, without looking at any performance number.**
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_apriori.py", "classify_apriori.py")}
+yields **21 features**:
+
+| # | Feature | Mechanism | Observability |
+|---|---|---|---|
+| 1 | `PerNodeTcBytesCv` | FPNT | local |
+| 2 | `PerNodeTcBytesGini` | FPNT | local |
+| 3 | `TcMessageSizeCv` | FPNT | local |
+| 4 | `TcMessageSizeP95ToMeanRatio` | FPNT | local |
+| 5 | `AdvertisedLinksPerTcCv` | DCFM | local |
+| 6 | `AdvertisedLinksPerTcP95ToMeanRatio` | DCFM | local |
+| 7 | `TcAnsnIncrementMean` | DCFM | local |
+| 8 | `TcAnsnSkipRatePerTc` | DCFM | local |
+| 9 | `TcMessageContentEntropyNorm` | FPNT+DCFM | local |
+| 10 | `MprSelectorCountPerTcCv` | DCFM | local |
+| 11 | `ChannelBusyTimeFraction` | FPNT | local |
+| 12 | `TcAdvertisedAddressEntropyNorm` | DCFM | local |
+| 13 | `PacketSizeDistributionSkew` | FPNT | local |
+| 14 | `PacketSizeDistributionKurtosis` | FPNT | local |
+| 15 | `AdvertisedDegreeCv` | DCFM | tc-graph |
+| 16 | `AdvertisedDegreeSkew` | DCFM | tc-graph |
+| 17 | `AdvertisedDegreeKurtosis` | DCFM | tc-graph |
+| 18 | `AdvertisedClusteringCoefficient` | DCFM | tc-graph |
+| 19 | `AdvertisedRadiusToDiameterRatio` | DCFM | tc-graph |
+| 20 | `AdvertisedGraphDensity` | DCFM | tc-graph |
+| 21 | `EdgePersistenceFraction` | DCFM | tc-graph |
+
+This 21-feature set **was** trained and evaluated on all 8 conditions
+({refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/run_apriori21.sh", "run_apriori21.sh")},
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/compare_apriori.py", "compare_apriori.py")}).
+
+---
+
+### Results — [VERIFIED]
+ROC-AUC (and, for the 21-set, TPR@1%FPR) across all 8 conditions, comparing the final 21-feature
+set with the 59-feature green set and the earlier drop6 (26) baseline:
+
+| Condition | 26 AUC | 59 AUC | 21 AUC | 21 TPR@1% |
+|---|---|---|---|---|
+| fpnt_static | 0.956 | 1.000 | 1.000 | 1.000 |
+| fpnt_mobile | 0.837 | 1.000 | 1.000 | 1.000 |
+| dcfm_static | 0.860 | 0.988 | 0.983 | 0.888 |
+| dcfm_mobile | 0.877 | 0.999 | 0.999 | 0.992 |
+| trust_static | 0.852 | 0.882 | 0.698 | 0.102 |
+| trust_mobile | 0.681 | 0.691 | 0.622 | 0.034 |
+| watchdog_static | 0.966 | 0.984 | 0.925 | 0.588 |
+| watchdog_mobile | 0.734 | 0.750 | 0.643 | 0.040 |
+
+**What it means.** Dropping **38 of 59** features on principle costs almost nothing for FPNT/DCFM
+(both far above the 26-baseline on TPR@1%), while TRUST/WATCHDOG fall — the intended outcome, not
+a loss. Re-running the transfer test on the 21-set **improves** DCFM generalisation
+(mobile→static rises from 0.649 on the 59-set to **0.942** on the 21-set): the a-priori-removed
+features were injecting topology-dependent noise. Crucially, the a-priori selection (from code)
+and the transfer-survival ranking (from performance) — two independent routes — converge on the
+same core: TC size / bytes for FPNT, advertised-address entropy and graph structure for DCFM.
+
+**Central result — [VERIFIED]:** generalising passive detection works for the *loud* defenses
+(FPNT perfectly, DCFM strongly) and essentially **fails** for the *gentle* ones (TRUST,
+WATCHDOG), with every surviving feature justified on three independent a-priori grounds — clean
+denominator, single-node observability, implementation-general mechanism. This is the sharpest
+statement of the detectability↔efficacy tradeoff in the project.
+
+**Limitations — [HYPOTHESIS].** Implementation-generality is argued from a *single*
+implementation of each defense; surviving an alternative faithful implementation is untested and
+is the natural next campaign. All features were also extracted at a single network size (N=50),
+so size-generalisation remains untested. And because the 21-set was selected using all 8
+conditions, its numbers are the **selected set's** performance (optimistic); a clean held-out
+estimate needs the full multi-size campaign — see [Open Questions](#open-questions).
+
+### Sources
+- NS-3: feature schema {ref(FEATURES)}; FPNT {ref(D_FPNT)}; DCFM/GCOP {ref(D_GCOP)}
+- Pipeline {refml(ML_PIPE)}
+- Classifiers: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_apriori.py", "classify_apriori.py")},
+  {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_observability.py", "classify_observability.py")},
+  {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_implementation.py", "classify_implementation.py")}
+- Transfer + selection: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")},
+  {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/build_final_set.py", "build_final_set.py")}
+- Runner {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/run_apriori21.sh", "run_apriori21.sh")};
+  comparison {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/compare_apriori.py", "compare_apriori.py")}
+- Feature lists: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_clean_step33.txt", "features_clean_step33.txt")} (59),
+  {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_apriori_lenient.txt", "features_apriori_lenient.txt")} (21)
+- Outputs: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/results_run9_apriori21/")} and the transfer CSVs under `.../transfer_test/`
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -2416,7 +2768,7 @@ These cannot be resolved by analysis alone.
 
 | # | Question | Why it decides something |
 |---|---|---|
-| 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. |
+| 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. **Addressed ([Step 33](#step-33)):** FPNT's TC enlargement survives the static<->mobile transfer test (ROC-AUC 1.000 both directions), so detection via TC size is a legitimate, generalising finding — though confirmed against a *single* implementation only. |
 | 2 | **Does DCFM's mechanism inherently alter MPR structure and TC advertisement?** | Determines whether the DCFM cluster (`AverageMprCount`, `AdvertisedLinks`, `NormalizedRoutingLoad`) is a legitimate signature or an artefact. |
 | 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 31](#step-31)). |
 | 4 | **Does forcing `RtsCtsThreshold = 0` on small packets constitute a cheat for the model?** | Raised at the 2026-05-18 meeting ([Step 17](#step-17)). Two defenses force RTS/CTS; if the classifier reads that, it is reading our configuration, not the defense. **This question anticipated the whole leakage analysis and is still open.** |
@@ -2439,7 +2791,7 @@ follows the logs.**
 ### C. Methodological items still outstanding
 | # | Item | Status |
 |---|---|---|
-| 9 | **Test the normalisation hypothesis** ([Step 31](#step-31)) | **Blocking** — no Step 29 result is final until done |
+| 9 | ~~**Test the normalisation hypothesis** ([Step 31](#step-31))~~ **RESOLVED** ([Step 33](#step-33)) | Confirmed from source: `AvgTxPacketSize` divides by mean all-packet size (FPNT padding), the MPR/advertised family divides by `nObs` (inflated by DCFM's `main+65536` injection). A leak-free, observable, implementation-general 21-feature set is now established |
 | 10 | **Dynamic-attacker selection is too loose** | ~70% of successful runs have an **off-path** attacker → their `attack` vectors are indistinguishable from `baseline`, injecting ~70% noise. Fix: select the attacker as the **actual next hop** in Node 1's routing table toward Node 0 ([Step 15](#step-15)) |
 | 11 | **Rule 1c residual false positives** | Options: (A) disable Rule 1c (Rule 1b alone gave 100% detection); (B) require **three** consecutive violations for 1c; (C) exclude blacklisted addresses from 1c verification. **Decision required before feature extraction** |
 | 12 | **Data provenance** | Relationship between `~/dataset_paper/` and `dataset_128_all_defenses` was never independently audited |
@@ -3031,31 +3383,37 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 |---|---|
 | {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml`; 13 models, grouped CV, isotonic calibration, TPR@FPR |
 
-*Every script in `scripts_for_all_128/` (13 files)*
+*Key scripts in `scripts_for_all_128/` (runs 1–3 and Step 33)*
 
 | File | Role |
 |---|---|
-| {refml("scripts_for_all_128/run_all_defenses.sh", "run_all_defenses.sh")} | Orchestrates **run 1** — 8 conditions × metrics32 → `results_run1/` |
-| {refml("scripts_for_all_128/run_behavioral.sh", "run_behavioral.sh")} | Orchestrates **run 2** — ablation `--drop-features` (drop3 → 29, drop6 → 26) |
-| {refml("scripts_for_all_128/run_expanded.sh", "run_expanded.sh")} | Orchestrates **run 3** — 76-feature clean set (`--features-file`) |
-| {refml("scripts_for_all_128/features_clean.txt", "features_clean.txt")} | The generated 76-feature list consumed by run 3 |
-| {refml("scripts_for_all_128/verify_features.py", "verify_features.py")} | Confirms which base features a run actually used (schema sanity check) |
-| {refml("scripts_for_all_128/diagnose_leakage.py", "diagnose_leakage.py")} | Univariate-AUC leakage screen over `metrics32` |
-| {refml("scripts_for_all_128/scan_core95.py", "scan_core95.py")} | Univariate leakage screen over the Core-95 features |
-| {refml("scripts_for_all_128/build_features76.py", "build_features76.py")} | Builds the clean 76-feature list from the Core-95 scan |
-| {refml("scripts_for_all_128/rank_importance.py", "rank_importance.py")} | Importance-concentration diagnostic (flags single-feature dominance) |
-| {refml("scripts_for_all_128/per_defense_tables.py", "per_defense_tables.py")} | All-13-models table per defense, static vs mobile |
-| {refml("scripts_for_all_128/three_metrics.py", "three_metrics.py")} | AUC / MCC / **TPR@1%FPR** across the 32/29/26 runs |
-| {refml("scripts_for_all_128/compare_runs.py", "compare_runs.py")} | 32 vs 29 vs 26 aggregation |
-| {refml("scripts_for_all_128/compare_26_vs_76.py", "compare_26_vs_76.py")} | 26 vs 76 comparison + leakage re-check |
+| {refml("scripts_for_all_128/step28_exp1_baseline_32/run_all_defenses.sh", "run_all_defenses.sh")} | Orchestrates **run 1** — 8 conditions × metrics32 → `scripts_for_all_128/step28_exp1_baseline_32/results_run1/` |
+| {refml("scripts_for_all_128/step29_exp2_ablation_26/run_behavioral.sh", "run_behavioral.sh")} | Orchestrates **run 2** — ablation `--drop-features` (drop3 → 29, drop6 → 26) |
+| {refml("scripts_for_all_128/step30_exp3_expansion_76/run_expanded.sh", "run_expanded.sh")} | Orchestrates **run 3** — 76-feature clean set (`--features-file`) |
+| {refml("scripts_for_all_128/step30_exp3_expansion_76/features_clean.txt", "features_clean.txt")} | The generated 76-feature list consumed by run 3 |
+| {refml("scripts_for_all_128/step28_exp1_baseline_32/verify_features.py", "verify_features.py")} | Confirms which base features a run actually used (schema sanity check) |
+| {refml("scripts_for_all_128/step29_exp2_ablation_26/diagnose_leakage.py", "diagnose_leakage.py")} | Univariate-AUC leakage screen over `metrics32` |
+| {refml("scripts_for_all_128/step30_exp3_expansion_76/scan_core95.py", "scan_core95.py")} | Univariate leakage screen over the Core-95 features |
+| {refml("scripts_for_all_128/step30_exp3_expansion_76/build_features76.py", "build_features76.py")} | Builds the clean 76-feature list from the Core-95 scan |
+| {refml("scripts_for_all_128/step28_exp1_baseline_32/rank_importance.py", "rank_importance.py")} | Importance-concentration diagnostic (flags single-feature dominance) |
+| {refml("scripts_for_all_128/step28_exp1_baseline_32/per_defense_tables.py", "per_defense_tables.py")} | All-13-models table per defense, static vs mobile |
+| {refml("scripts_for_all_128/step29_exp2_ablation_26/three_metrics.py", "three_metrics.py")} | AUC / MCC / **TPR@1%FPR** across the 32/29/26 runs |
+| {refml("scripts_for_all_128/step29_exp2_ablation_26/compare_runs.py", "compare_runs.py")} | 32 vs 29 vs 26 aggregation |
+| {refml("scripts_for_all_128/step30_exp3_expansion_76/compare_26_vs_76.py", "compare_26_vs_76.py")} | 26 vs 76 comparison + leakage re-check |
+| {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/run_apriori21.sh", "run_apriori21.sh")} | Orchestrates **run 9** — the 21 a-priori features (`--features-file`) across 8 conditions |
+| {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/classify_apriori.py", "classify_apriori.py")} | A-priori filter over the 59 green features: observability + implementation-generality → the 21-feature set |
+| {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")} | Train-one-mobility-regime / test-the-other transfer test (full-set and per-feature) |
+| {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/compare_apriori.py", "compare_apriori.py")} | 21 vs 59 vs 26 comparison (AUC / MCC / TPR@1%FPR) |
+| {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_apriori_lenient.txt", "features_apriori_lenient.txt")} | The final 21 defense-independent, observable, implementation-general features |
 
 *Result files (git-tracked outputs of the three runs)*
 
 | Directory | Files it contains |
 |---|---|
-| `results_run1/` | `per_defense_all_models.csv`, `importance_overview.csv`, `univariate_auc_matrix.csv`, and 8 condition dirs `{{fpnt,trust,dcfm,watchdog}}_{{static,mobile}}/` each holding `summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/` |
-| `results_run2_behavioral/` | `comparison_32_vs_29_vs_26.csv`, `three_metrics.csv`, `core95_scan.csv`, and `drop3/` + `drop6/` (each with the same 8 condition dirs) |
-| `results_run3_expanded/` | `compare_26_vs_76.csv`, and 8 condition dirs (same per-condition file set as run 1) |
+| `scripts_for_all_128/step28_exp1_baseline_32/results_run1/` | `per_defense_all_models.csv`, `importance_overview.csv`, `univariate_auc_matrix.csv`, and 8 condition dirs `{{fpnt,trust,dcfm,watchdog}}_{{static,mobile}}/` each holding `summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/` |
+| `scripts_for_all_128/step29_exp2_ablation_26/results_run2_behavioral/` | `comparison_32_vs_29_vs_26.csv`, `three_metrics.csv`, `core95_scan.csv`, and `drop3/` + `drop6/` (each with the same 8 condition dirs) |
+| `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/` | `compare_26_vs_76.csv`, and 8 condition dirs (same per-condition file set as run 1) |
+| `scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/results_run9_apriori21/` | `apriori_comparison.csv`, the three per-metric pivots, 8 condition dirs (same per-condition file set as run 1), and `transfer_test/` (`full_set_transfer.csv`, `per_feature_transfer.csv`) |
 
 ### Reproduction environment
 ```bash
