@@ -201,7 +201,7 @@ the project's analytical contribution lies.
 > repository `hananelk26/ML-for-NS3` (branch `main`) is **private**, so its files are given
 > as **repo-relative paths in code font, not links** — a private-repo URL would return 404
 > for any reader. The ML work spans **two pipelines** — the earlier `defense_ml` package
-> ([Part III](#step-19)) and the later `defense_detection_v4` ([Part V](#step-26)).
+> ([Part III](#step-20)) and the later `defense_detection_v4` ([Part V](#step-27)).
 
 ### Provenance of this report
 
@@ -225,65 +225,67 @@ md("""
 3. [Literature review and feature harvesting](#step-3) — 2025-11-17, 2025-11-26
 4. [Implementing the black-hole attack; selecting three defense families](#step-4) — 2025-12-03
 5. [The defense-strategy interface](#step-5)
+6. [A published defense that cannot work, and the comment to *Scientific Reports*](#step-6) — 2026-02-18
 
 **Part II — Defense implementation and validation (Feb – May 2026)**
 
-6. [Two working defenses: Watchdog and FPNT](#step-6) — 2026-02-18
-7. [DCFM/GCOP: algorithm correctness](#step-7) — 2026-04-16
-8. [DCFM/GCOP: the MAC-saturation artefact and penalty tuning](#step-8) — 2026-04-17
-9. [Watchdog: hardening and the four-phase harness](#step-9) — 2026-04-19
-10. [Watchdog: two false-positive bugs](#step-10) — 2026-04-22
-11. [Watchdog: risk analysis and algorithm design](#step-11) — 2026-04-23
-12. [Watchdog: multi-topology evaluation](#step-12) — 2026-04-25
-13. [The propagation-loss root-cause bug](#step-13) — 2026-04-29
-14. [DCFM/GCOP: milestone and deviations from the paper](#step-14) — 2026-04-29
-15. [Fixing the evaluation methodology: F1–F5](#step-15) — 2026-05-01
-16. [Watchdog: harness parity and calibration](#step-16) — 2026-05-03
-17. [Correcting the attack; supervisor review](#step-17) — 2026-05-06, 2026-05-13, 2026-05-18
-18. [Adding the fourth defense: TRUST2](#step-18)
+7. [Two working defenses: Watchdog and FPNT](#step-7) — 2026-02-18
+8. [DCFM/GCOP: algorithm correctness](#step-8) — 2026-04-16
+9. [DCFM/GCOP: the MAC-saturation artefact and penalty tuning](#step-9) — 2026-04-17
+10. [Watchdog: hardening and the four-phase harness](#step-10) — 2026-04-19
+11. [Watchdog: two false-positive bugs](#step-11) — 2026-04-22
+12. [Watchdog: risk analysis and algorithm design](#step-12) — 2026-04-23
+13. [Watchdog: multi-topology evaluation](#step-13) — 2026-04-25
+14. [The propagation-loss root-cause bug](#step-14) — 2026-04-29
+15. [DCFM/GCOP: milestone and deviations from the paper](#step-15) — 2026-04-29
+16. [Fixing the evaluation methodology: F1–F5](#step-16) — 2026-05-01
+17. [Watchdog: harness parity and calibration](#step-17) — 2026-05-03
+18. [Correcting the attack; supervisor review](#step-18) — 2026-05-06, 2026-05-13, 2026-05-18
+19. [Adding the fourth defense: TRUST2](#step-19)
 
 **Part III — Machine Learning, Campaign 1: the `defense_ml` pipeline (Jun – early Jul 2026)**
 
-19. [The first ML campaign: dataset, task, and a leak-free pipeline](#step-19) — 2026-06-14 → 07-02
-20. [Baseline detection, the red flag, and FPNT as a single artifact](#step-20)
-21. [DCFM: a broad, "holographic" phantom signature](#step-21) — 2026-06-23 → 25
-22. [The observability ladder 95 → 67 → 18, and the external observer](#step-22)
-23. [Two planes, and the central tradeoff thesis](#step-23)
-24. [Advanced experiments: generalisation, novelty, defending the method](#step-24)
+20. [The first ML campaign: dataset, task, and a leak-free pipeline](#step-20) — 2026-06-14 → 07-02
+21. [Baseline detection, the red flag, and FPNT as a single artifact](#step-21)
+22. [DCFM: a broad, "holographic" phantom signature](#step-22) — 2026-06-23 → 25
+23. [The observability ladder 95 → 67 → 18, and the external observer](#step-23)
+24. [Two planes, and the central tradeoff thesis](#step-24)
+25. [Advanced experiments: generalisation, novelty, defending the method](#step-25)
 
 **Part IV — The Transition (late Jun – mid Jul 2026)**
 
-25. [DCFM realignment to the paper; the 24 June feature run](#step-25) — 2026-06-24 → 07-10
+26. [DCFM realignment to the paper; the 24 June feature run](#step-26) — 2026-06-24 → 07-10
 
 **Part V — Machine Learning, Campaign 2: the `defense_detection_v4` pipeline (Jul 2026)**
 
-26. [The 128-feature schema](#step-26)
-27. [Dataset generation](#step-27) — 2026-07-13
-28. [Experiment 1 — baseline on 32 features; leakage discovered](#step-28)
-29. [Experiment 2 — univariate screen and ablation to 26 features](#step-29)
-30. [Experiment 3 — expansion to 76 features; leakage returns](#step-30) — 2026-07-19
-31. [Root-cause analysis: the normalisation hypothesis](#step-31)
-32. [Experiment 2b — single-feature ablation of the DCFM cluster](#step-32) — 2026-07-24
-33. [Defense-independent features: normalisation leak, transfer, and the final 21-feature set](#step-33) — 2026-07-27
+27. [The 128-feature schema](#step-27)
+28. [Dataset generation](#step-28) — 2026-07-13
+29. [Experiment 1 — baseline on 32 features; leakage discovered](#step-29)
+30. [Experiment 2 — univariate screen and ablation to 26 features](#step-30)
+31. [Experiment 3 — expansion to 76 features; leakage returns](#step-31) — 2026-07-19
+32. [Root-cause analysis: the normalisation hypothesis](#step-32)
+33. [Experiment 2b — single-feature ablation of the DCFM cluster](#step-33) — 2026-07-24
+34. [Defense-independent features: normalisation leak, transfer, and the final 21-feature set](#step-34) — 2026-07-27
+35. [Generalisation as a pipeline capability: mobility transfer, cross-defense matrix, and LODO](#step-35) — 2026-07-29
 
 **Part VI — Synthesis**
 
-34. [Open questions](#open-questions)
-35. [Planned full-scale campaign](#full-campaign)
+36. [Open questions](#open-questions)
+37. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-36. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-37. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-38. [`scratch/` — feature schema and simulations](#guide-scratch)
-39. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-40. [Repository-root batch scripts](#guide-scripts)
-41. [Reproducing the dataset — the exact commands](#guide-repro)
+38. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+39. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+40. [`scratch/` — feature schema and simulations](#guide-scratch)
+41. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+42. [Repository-root batch scripts](#guide-scripts)
+43. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-42. [References](#references)
-43. [File index](#file-index)
+44. [References](#references)
+45. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -310,7 +312,7 @@ The central goal was set: develop an **AI model capable of identifying which def
 mechanisms are active** in a mobile ad-hoc network (MANET). This framing — detecting
 the defense rather than the attack — is what distinguishes the project from the bulk of
 the MANET-security literature, and it drove every subsequent decision, including the
-deliberate choice (Step 12) to keep one defense entirely passive so that classifying it
+deliberate choice (Step 13) to keep one defense entirely passive so that classifying it
 would be genuinely difficult.
 
 ### Tasks assigned
@@ -389,18 +391,21 @@ and *passive* features (e.g. elevated routing overhead).
 | **Tan et al. (2015)** — *Trust Based Routing … OLSR-based MANET* | Fuzzy Petri Net trust, propagated via TC | **Selected → Defense 2 (FPNT)** |
 | **Schweitzer et al. (2025)** — *Achieving MANET Protection without Superfluous Fictitious Nodes* | GCOP/GCOHP graph colouring + contradiction rules | **Selected → Defense 3 (DCFM/GCOP)** |
 | *New MPR Computation … Against Single Black Hole* | `ttl=2` HELLO + `ACK_HELLO` + K score | Surveyed; **not implemented** |
+| **Srinivasan (2025)** — *Innovative Cross-Layer Defense Mechanisms … Black Hole and Wormhole Attacks* (Scientific Reports) | Cross-layer "Enhanced SVM" | **Shortlisted, attempted, abandoned** — the published algorithm cannot work; see [Step 6](#step-6) |
 
 ### A negative result worth recording
-One well-regarded paper's proposed defense was found, on close reading and attempted
-implementation, to contain **substantive errors** — the mechanism as specified does not
-achieve what the paper claims. This is documented here because it consumed real project
-time and because negative findings about published work are rarely reported.
+One of the shortlisted papers — **Srinivasan (2025)**, in *Scientific Reports* — was found,
+on close reading and attempted implementation, to contain **substantive errors**: the
+mechanism as specified cannot perform the classification the paper claims for it. The
+project went on to submit a formal comment to the journal's editor. Because that is a dated
+piece of work in its own right, it is recorded at its own date — see [Step 6](#step-6),
+which sets out the three specific defects.
 
 ### Feature funnel — first pass
 Roughly **150** candidate features were harvested across the surveyed papers. After
 discarding features requiring an observer position unavailable to a passive adversary,
 approximately **100** remained. This set was later formalised as the **Core-95** schema
-(Step 26).
+(Step 27).
 
 ### Outcome
 Three defense families selected for implementation — **Trust-based**, **Cryptographic**,
@@ -436,7 +441,7 @@ The attacker does not merely drop packets — dropping alone attracts no traffic
 Mechanisms 1–3 attack the **control plane** to win the MPR election; mechanism 4 attacks
 the **data plane** once won. ANSN poisoning turned out to have consequences well beyond
 its intended role — it pollutes the topology set of *every* legitimate node, which is
-what later forced Contradiction Rule 2 to be disabled (Steps 7, 14).
+what later forced Contradiction Rule 2 to be disabled (Steps 8, 15).
 
 ### Source
 - Attack implementation: {ref(ATTACK)}, {ref(ATTACK_H)}
@@ -444,7 +449,7 @@ what later forced Contradiction Rule 2 to be disabled (Steps 7, 14).
 ### Note on a later correction
 As originally written, the attack advertised links only to **fictitious** nodes. It was
 corrected in May 2026 to also claim links to **real nodes from the network** — see
-[Step 17](#step-17).
+[Step 18](#step-18).
 """)
 
 md(f"""
@@ -503,10 +508,99 @@ and RTS/CTS observations, and `DoInitialize` forces `RtsCtsThreshold = 0` on eve
 device so that **every** unicast — not only large frames — is preceded by RTS/CTS. That
 last decision is what makes the Watchdog's MAC-layer signal observable at all, and it
 became a question in its own right: does forcing RTS/CTS constitute a give-away that the
-ML model could cheat on? (See [Step 17](#step-17).)
+ML model could cheat on? (See [Step 18](#step-18).)
 
 ### Source
 - Interface: {ref(IFACE)}, {ref(IFACE_CC)}
+""")
+
+md("""
+<a id="step-6" name="step-6"></a>
+## Step 6 — A published defense that cannot work, and the comment to *Scientific Reports*
+**Dates:** flaw found while attempting implementation (Nov – Dec 2025); comment letter submitted **2026-02-18**
+
+### Context
+The survey of [Step 3](#step-3) shortlisted candidate defenses to build. One of them was
+**Jagadeesan Srinivasan, *"Innovative cross-layer defense mechanisms for black hole and
+wormhole attacks in wireless ad-hoc networks"*, Scientific Reports (April 2025)** —
+attractive because it was recent, cross-layer in the same sense as Baiad et al., and aimed
+at exactly our attack. Implementation was attempted. It failed, and the failure was not in
+our code.
+
+### What the attempt revealed
+Three findings, in ascending order of severity.
+
+**1. The classifier is mathematically null.**
+Detection rests on an *"Enhanced Support Vector Machine"* (E-SVM). Any SVM decision
+function has the form `f(x) = ⟨w, x⟩ + b`. In the *Detection and Isolation Phase* section
+the bias term is derived as *"the difference of this value from one"* — that is, writing
+the computed weight factor as `V`, the paper defines `b = 1 − V`. Substituting:
+
+```
+f(x) = ⟨w, x⟩ + b = V + (1 − V) = 1
+```
+
+The decision function collapses to the **constant 1, independent of the input `x`**. Every
+input yields the same output, so no class separation is possible: the mechanism is a **null
+classifier**. It follows that the performance reported in *Results and discussion* —
+including an 89.28% packet delivery ratio — cannot have been produced by the algorithm the
+paper describes.
+
+**2. The method is not an SVM.**
+The manuscript presents the standard SVM apparatus — Lagrangian multipliers, hyperplane
+optimisation — but the mechanism actually described in *Proposed Work* classifies each point
+by a **mean ± standard-deviation threshold per input dimension**. There is no quadratic
+optimisation, no identification of support vectors, no margin maximisation and no kernel.
+Functionally this is **Z-score anomaly detection**. "Enhanced SVM" names a different
+algorithm from the one implemented.
+
+**3. The pseudo-code is not executable.**
+Algorithm 1 (the "E-SVM Algorithm", p. 7) branches on `If blackhole condition` and
+`Elif wormhole condition`. Neither is defined anywhere — not as a formal criterion, not as
+a mathematical expression, not in the surrounding prose. There is nothing to implement.
+
+### The comment letter
+A formal comment setting out these three points was submitted to the editor of *Scientific
+Reports* on **2026-02-18**, asking the editorial board to contact the author for a
+clarification to readers. It is signed by five authors — **Nadav Schweitzer, Oded Ofek,
+Hananel Kadron, Dror Mughaz and Ariel Stulman**: the project's two students, both
+supervisors, and a co-author of the DCFM paper this project later implemented
+(Schweitzer et al., 2025; see [References](#references)).
+
+### Why a negative result about someone else's paper belongs in this report
+Three reasons, and the third generalises beyond this project:
+
+1. **It consumed real project time.** Without it, a reader reconstructing the timeline is
+   left wondering where the months between the survey and the first working defense went.
+2. **Negative findings about published work are rarely reported**, and are therefore rarely
+   available to the next group that picks the same paper off the same search results.
+3. **The flaw is invisible to reading and visible only to implementation.** Points 1 and 3
+   in particular do not surface from skimming a methodology section; they surface the moment
+   someone tries to turn the equations into code and finds there is nothing to write.
+   **Attempted implementation is a form of peer review that publication does not currently
+   include** — and this project performed it by accident, simply by trying to build what it
+   had read.
+
+There is also a symmetry worth naming, because it runs through the whole report. Everything
+that follows is an extended argument that **a reported number is only as good as the
+mechanism that could have produced it**: the FlowMonitor artefact of [Step 9](#step-9), the
+three separate bugs of [Steps 9, 13, 15](#step-9) that each made the metrics look *better*
+while the system was more broken, and the entire leakage analysis of [Part V](#step-27).
+Point 1 above is that same argument turned outward: an 89.28% cannot come from a constant
+function.
+
+### Status
+**[VERIFIED]** — the letter exists, is dated 2026-02-18, and carries the five signatures
+named above; the three technical points are taken from its text. The **editorial outcome is
+not recorded in this report**, and nothing here should be read as a resolved dispute.
+
+### Sources
+- Project document: *"Comment on 'Innovative cross-layer defense mechanisms for blackhole
+  and wormhole attacks in wireless ad-hoc networks'"* — letter to the editor, *Nature
+  Scientific Reports*, 2026-02-18 (held with the project papers; not in either code
+  repository)
+- The paper commented on: Srinivasan (2025), listed under [References](#references)
+- The survey that shortlisted it: [Step 3](#step-3)
 """)
 
 # ==========================================================================
@@ -534,8 +628,8 @@ the dataset's four vectors per run.
 """)
 
 md(f"""
-<a id="step-6" name="step-6"></a>
-## Step 6 — Two working defenses: Watchdog and FPNT
+<a id="step-7" name="step-7"></a>
+## Step 7 — Two working defenses: Watchdog and FPNT
 **Date:** 2026-02-18
 
 ### Status at this point
@@ -556,13 +650,13 @@ relay within a timeout, the cross-layer logic disambiguates:
 **Deviation from the paper.** The paper specifies a *cooperative* decision across nodes
 but does not specify the aggregation protocol. In our implementation **each node decides
 independently**. This is not merely a shortcut — see the deliberate justification in
-[Step 12](#step-12).
+[Step 13](#step-13).
 
 **Two implementation additions beyond the paper:**
 1. A sophisticated attacker might send RTS but never transmit, while *A* is simply too
    far from *C* to hear the CTS. To close this, *A* also flags *B* if it observes *B*
    emitting **excessive RTS**. This heuristic later proved to be the source of a serious
-   false-positive bug — see [Step 10](#step-10).
+   false-positive bug — see [Step 11](#step-11).
 2. A **reputation system with decay** replaced binary accusation: forwarding raises the
    score, each missed forward lowers it, and only crossing a threshold blacklists. This
    was introduced specifically to avoid punishing a node that drops packets because it
@@ -574,8 +668,8 @@ defense correctly identified the attacker and rerouted through the honest backup
 then, seconds later, began flagging **the backup too**. The backup was not malicious; it
 was drowning in the traffic that had just been diverted onto it. *Congestion is
 indistinguishable from malice to a naive watchdog.* This observation drove the
-reputation system, the congestion-disambiguation logic of [Step 9](#step-9), and the
-three-guard commit policy of [Step 12](#step-12).
+reputation system, the congestion-disambiguation logic of [Step 10](#step-10), and the
+three-guard commit policy of [Step 13](#step-13).
 
 ### Defense 2 — FPNT (Tan et al., 2015)
 Each node watchdogs its neighbours and feeds the observations into a **Fuzzy Petri Net**
@@ -601,8 +695,8 @@ defense for OLSR to serve as Defense 3.
 """)
 
 md(f"""
-<a id="step-7" name="step-7"></a>
-## Step 7 — DCFM/GCOP: algorithm correctness
+<a id="step-8" name="step-8"></a>
+## Step 8 — DCFM/GCOP: algorithm correctness
 **Date:** 2026-04-16
 
 ### The defense
@@ -673,8 +767,8 @@ monitors the **data plane**, DCFM the **control plane**.
 """)
 
 md(f"""
-<a id="step-8" name="step-8"></a>
-## Step 8 — DCFM/GCOP: the MAC-saturation artefact and penalty tuning
+<a id="step-9" name="step-9"></a>
+## Step 9 — DCFM/GCOP: the MAC-saturation artefact and penalty tuning
 **Date:** 2026-04-17
 
 ### The artefact — a measurement lying to us
@@ -743,8 +837,8 @@ a 3-hop bypass without displacing the 2-hop baseline route. Result: 4 of 5 seeds
 """)
 
 md(f"""
-<a id="step-9" name="step-9"></a>
-## Step 9 — Watchdog: hardening and the four-phase harness
+<a id="step-10" name="step-10"></a>
+## Step 10 — Watchdog: hardening and the four-phase harness
 **Date:** 2026-04-19
 
 Six defects were found by auditing the implementation against both the paper and ns-3's
@@ -796,15 +890,15 @@ false-positive dimension.
 """)
 
 md(f"""
-<a id="step-10" name="step-10"></a>
-## Step 10 — Watchdog: two false-positive bugs
+<a id="step-11" name="step-11"></a>
+## Step 11 — Watchdog: two false-positive bugs
 **Date:** 2026-04-22
 
 ### Bug #1 — the RTS-Spam heuristic accuses everyone
 **Symptom.** `defense_only` PDR *below* `baseline`, and `defense_vs_attack` showing no
 recovery — the signature of legitimate nodes being blacklisted with no attack running.
 
-**Root cause.** The heuristic added in [Step 6](#step-6):
+**Root cause.** The heuristic added in [Step 7](#step-7):
 
 ```cpp
 else if (obs.rtsCount > 0 && !obs.hasClearance) {{
@@ -866,7 +960,7 @@ Verification deferred to the next session.
 ### Why `attack_only` (70.0%) exceeds `baseline` (60.1%)
 Not a defect. The baseline is **congestion-bound**: ten flows on a shared 802.11b
 medium, dominated by collisions. When the attacker silently absorbs traffic, contention
-falls and the surviving flows do *better*. Compare [Step 8](#step-8) — the same
+falls and the surviving flows do *better*. Compare [Step 9](#step-9) — the same
 pathology, a different mechanism.
 
 Further, `[PENDING-SNAPSHOT]` showed only **three of ten** sources routing through the
@@ -879,8 +973,8 @@ effect.
 """)
 
 md(f"""
-<a id="step-11" name="step-11"></a>
-## Step 11 — Watchdog: risk analysis and algorithm design
+<a id="step-12" name="step-12"></a>
+## Step 12 — Watchdog: risk analysis and algorithm design
 **Date:** 2026-04-23 · **Author:** Oded Ofek
 
 ### Codebase audit
@@ -957,8 +1051,8 @@ rather than an aspiration.
 """)
 
 md(f"""
-<a id="step-12" name="step-12"></a>
-## Step 12 — Watchdog: multi-topology evaluation
+<a id="step-13" name="step-13"></a>
+## Step 13 — Watchdog: multi-topology evaluation
 **Date:** 2026-04-25 (dev timeline 2026-04-10 → 2026-04-25)
 
 ### A design decision with consequences for the whole project
@@ -1063,8 +1157,8 @@ distinguishing structure per defense, not less.
 """)
 
 md(f"""
-<a id="step-13" name="step-13"></a>
-## Step 13 — The propagation-loss root-cause bug
+<a id="step-14" name="step-14"></a>
+## Step 14 — The propagation-loss root-cause bug
 **Date:** 2026-04-29 · **Environment:** ns-3.45, WSL / Ubuntu 24
 
 > This is the most consequential infrastructure finding of the project. It had been
@@ -1126,8 +1220,8 @@ all (it is a pure multiplexer). **Resolution:** `PfifoFastQueueDisc` with an exp
 """)
 
 md(f"""
-<a id="step-14" name="step-14"></a>
-## Step 14 — DCFM/GCOP: milestone and deviations from the paper
+<a id="step-15" name="step-15"></a>
+## Step 15 — DCFM/GCOP: milestone and deviations from the paper
 **Date:** 2026-04-29
 
 ### Final bridge-topology results (8 nodes, 280 m range, seed 1)
@@ -1180,7 +1274,7 @@ polluted. `RouteOutput` then oscillated between success and failure, and packets
 dropped at the sender's IP layer — **invisible to FlowMonitor's `tx` counter, producing
 an inflated PDR that masked the instability**. Removing the early return fixed it.
 
-Three separate bugs in this project (Steps 8, 12, 14) produced *better-looking* metrics
+Three separate bugs in this project (Steps 9, 13, 15) produced *better-looking* metrics
 while the system was *more* broken. That pattern is the reason Part III insists on
 operational metrics.
 
@@ -1200,8 +1294,8 @@ operational metrics.
 """)
 
 md(f"""
-<a id="step-15" name="step-15"></a>
-## Step 15 — Fixing the evaluation methodology: F1–F5
+<a id="step-16" name="step-16"></a>
+## Step 16 — Fixing the evaluation methodology: F1–F5
 **Date:** 2026-05-01
 
 > This session fixed the **experimental design**, not the defense. It is the point at
@@ -1266,8 +1360,8 @@ is ever applied. The policy separates *persistent* from *momentary* evidence.
 """)
 
 md(f"""
-<a id="step-16" name="step-16"></a>
-## Step 16 — Watchdog: harness parity and calibration
+<a id="step-17" name="step-17"></a>
+## Step 17 — Watchdog: harness parity and calibration
 **Date:** 2026-05-03
 
 ### Harness parity — the precondition for comparison
@@ -1375,8 +1469,8 @@ data-plane defense over a control-plane one in this topology.
 """)
 
 md(f"""
-<a id="step-17" name="step-17"></a>
-## Step 17 — Correcting the attack; supervisor review
+<a id="step-18" name="step-18"></a>
+## Step 18 — Correcting the attack; supervisor review
 **Dates:** 2026-05-06, 2026-05-13, 2026-05-18
 
 ### 2026-05-06 — the attack was not attacking properly
@@ -1424,7 +1518,7 @@ while `defense_only` and `attack_only` are both high?
 The drop in `both` is **not** a failure to stop the attacker. It is the defense
 **mis-firing on honest nodes**, and it can only occur when both are active — the
 attacker supplies the poison, and the defense supplies the reaction. This is the same
-mechanism as Step 7's Issue C, now understood as a general property.
+mechanism as Step 8's Issue C, now understood as a general property.
 
 ### Open question raised at this meeting
 The harness must account for **structural differences between defenses**. Specifically:
@@ -1440,8 +1534,8 @@ entire leakage analysis of Part III, and it is recorded in
 """)
 
 md(f"""
-<a id="step-18" name="step-18"></a>
-## Step 18 — Adding the fourth defense: TRUST2
+<a id="step-19" name="step-19"></a>
+## Step 19 — Adding the fourth defense: TRUST2
 
 ### Rationale
 Three defenses were judged insufficient for a meaningful multi-class classification
@@ -1465,7 +1559,7 @@ piggybacks on control traffic, it is a *deep* swap ([§ swap sets](#guide-swap))
 TRUST2 turns out to be the **most scientifically interesting** defense in the study,
 though not for a flattering reason: it is the defense the classifier can barely detect.
 Across all 95 Core features, **no single feature exceeds a univariate AUC of 0.64** for
-TRUST2 (see [Step 30](#step-30)). Its best clean result — TRUST2/mobile at
+TRUST2 (see [Step 31](#step-31)). Its best clean result — TRUST2/mobile at
 TPR@1%FPR = 0.047 — is **operationally unusable**, only 4.7× better than chance.
 
 Precisely because no shortcut was ever available for it, **TRUST2's numbers are the most
@@ -1496,8 +1590,8 @@ defenses *as they then stood* — including the pre-realignment DCFM that still 
 phantom nodes. It produced the project's central scientific narrative: the observability
 ladder, the FPNT-artifact-vs-DCFM-signature distinction, the Trust 1.0-vs-2.0 study, and the
 **detectability↔efficacy tradeoff thesis**. Its findings then *motivated* the DCFM
-realignment and feature normalisation ([Part IV](#step-25)), after which a second, leaner
-pipeline — `defense_detection_v4` — was run on the normalised data ([Part V](#step-26)).
+realignment and feature normalisation ([Part IV](#step-26)), after which a second, leaner
+pipeline — `defense_detection_v4` — was run on the normalised data ([Part V](#step-27)).
 
 > **Repository.** Campaign 1 lives in the **private** ML repo `hananelk26/ML-for-NS3`
 > (branch `main`), package `defense_ml/defense_ml_project/`. Files below are given as
@@ -1506,8 +1600,8 @@ pipeline — `defense_detection_v4` — was run on the normalised data ([Part V]
 """)
 
 md(f"""
-<a id="step-19" name="step-19"></a>
-## Step 19 — The first ML campaign: dataset, task, and a leak-free pipeline
+<a id="step-20" name="step-20"></a>
+## Step 20 — The first ML campaign: dataset, task, and a leak-free pipeline
 **Dates:** 2026-06-14 → 2026-07-02
 
 ### The dataset
@@ -1568,8 +1662,8 @@ Friedman/Nemenyi model comparison ({refml(DML + "/defense_ml/stats.py", "stats.p
 """)
 
 md(f"""
-<a id="step-20" name="step-20"></a>
-## Step 20 — Baseline detection, the red flag, and FPNT as a single artifact
+<a id="step-21" name="step-21"></a>
+## Step 21 — Baseline detection, the red flag, and FPNT as a single artifact
 
 ### The result was too good
 On the full 95-feature schema, **presence detection reached ROC-AUC ≈ 1.00 for all three
@@ -1604,8 +1698,8 @@ organises the rest of Campaign 1.
 """)
 
 md(f"""
-<a id="step-21" name="step-21"></a>
-## Step 21 — DCFM: a broad, "holographic" phantom signature
+<a id="step-22" name="step-22"></a>
+## Step 22 — DCFM: a broad, "holographic" phantom signature
 **Dates:** 2026-06-23 → 2026-06-25
 
 DCFM's detection was *also* ≈ 1.00 — so the obvious question was whether it, too, was a
@@ -1629,7 +1723,7 @@ graph nodes **≈ 6 → 37**, TC packet rate **120 → 453 s⁻¹ (×3.8)**.
 
 ### Why the injection was kept anyway
 The phantom injection is not a bug to remove — it is **core to the DCFM mechanism** (it is
-how the defense forces contradictions; see [Step 7](#step-7)). So DCFM's detectability is a
+how the defense forces contradictions; see [Step 8](#step-8)). So DCFM's detectability is a
 *genuine, mechanism-driven* signature, unlike FPNT's byte-padding artifact. The redundancy is
 **deep** under the 95-feature control-plane schema but **shallow** under a performance-only
 33-feature schema (where only ~6 control features carry it, and detection collapses after
@@ -1642,8 +1736,8 @@ how the defense forces contradictions; see [Step 7](#step-7)). So DCFM's detecta
 """)
 
 md(f"""
-<a id="step-22" name="step-22"></a>
-## Step 22 — The observability ladder 95 → 67 → 18, and the external observer
+<a id="step-23" name="step-23"></a>
+## Step 23 — The observability ladder 95 → 67 → 18, and the external observer
 
 ### Threat models as feature sets
 A detector is only as realistic as the vantage point it assumes. Campaign 1 makes the
@@ -1691,8 +1785,8 @@ explicit no-encryption assumption.
 """)
 
 md(f"""
-<a id="step-23" name="step-23"></a>
-## Step 23 — Two planes, and the central tradeoff thesis
+<a id="step-24" name="step-24"></a>
+## Step 24 — Two planes, and the central tradeoff thesis
 **Dates:** Trust study + contrasts, late June – early July 2026
 
 ### DCFM and Watchdog leak through *different planes* **[VERIFIED]**
@@ -1741,8 +1835,8 @@ thesis, because they are the *same* defense at two operating points.
 """)
 
 md(f"""
-<a id="step-24" name="step-24"></a>
-## Step 24 — Advanced experiments: generalisation, novelty, and defending the method
+<a id="step-25" name="step-25"></a>
+## Step 25 — Advanced experiments: generalisation, novelty, and defending the method
 
 Campaign 1's publication layer adds three experiment families, all on the *existing* data
 (no new simulation), that go beyond in-domain detection.
@@ -1779,7 +1873,7 @@ Together these make Campaign 1 defensible as a paper. **But** its central findin
 DCFM's perfect detection is a real, broad signature while FPNT's is a byte artifact — combined
 with the recognition that the DCFM implementation still diverged from its paper, is exactly
 what triggered the next phase: realign DCFM, normalise the features, and re-run. That is
-[Part IV](#step-25).
+[Part IV](#step-26).
 
 ### Sources
 - {refml(DML + "/defense_ml/transfer.py", "transfer.py")}, {refml(DML + "/defense_ml/openset.py", "openset.py")}, {refml(DML + "/defense_ml/selection_audit.py", "selection_audit.py")}, {refml(DML + "/defense_ml/stats.py", "stats.py")}
@@ -1799,12 +1893,12 @@ Campaign 1 left one thing unresolved: DCFM's implementation still diverged from 
 and its perfect detectability — though a *real* signature — was partly a fingerprint of that
 divergence. The response was to realign DCFM to the paper, upgrade the learning code, and
 **normalise** the scale-dependent features, then regenerate the dataset. That regenerated,
-normalised dataset is what the second campaign ([Part V](#step-26)) measures.
+normalised dataset is what the second campaign ([Part V](#step-27)) measures.
 """)
 
 md(f"""
-<a id="step-25" name="step-25"></a>
-## Step 25 — DCFM realignment to the paper; the 24 June feature run
+<a id="step-26" name="step-26"></a>
+## Step 26 — DCFM realignment to the paper; the 24 June feature run
 **Date:** 2026-06-24
 
 > **Provenance.** This step bridges a gap in the dated session logs, which run to
@@ -1835,7 +1929,7 @@ closely. This was done in **two stages**, and the distinction is worth recording
    100% collapsed to sensible numbers, per defense, in both static and dynamic regimes.
 2. **Then, ported into the project's code structure** (git: *"replaced the files with the
    DCFM defense … aligned closely with the paper"*, **2026-07-10**). The realigned version
-   is materially different from the earlier one documented in [Steps 7, 8, 14](#step-7):
+   is materially different from the earlier one documented in [Steps 8, 9, 15](#step-8):
    it **removes the blacklist and the time-based penalties entirely**, **retains the
    suspicious-MPR handling**, uses the **updated GCOHP**, and applies **a small adjustment
    to the contradiction rules**. In other words, the version measured in the July campaign
@@ -1849,11 +1943,11 @@ model trained on the simulation's topology could generalise to networks of a **d
 topology or size** than the one the vectors were generated on. This is recorded in the
 feature schema as **"schema v5, normalised"** ({ref(FEATURES)}).
 
-> **This is the origin of the normalisation that [Step 31](#step-31) later identifies as
+> **This is the origin of the normalisation that [Step 32](#step-32) later identifies as
 > the probable root cause of the reintroduced leakage.** The normalisation was introduced
 > here for a sound reason (cross-topology generalisation) that the single-configuration
-> pilot dataset ([Step 27](#step-27)) cannot actually exercise — which is exactly why the
-> hypothesis in Step 31 is plausible. The decision that helped generalisation in
+> pilot dataset ([Step 28](#step-28)) cannot actually exercise — which is exactly why the
+> hypothesis in Step 32 is plausible. The decision that helped generalisation in
 > principle may have injected a configuration-dependent leak in practice. That tension is
 > not yet resolved.
 
@@ -1863,13 +1957,13 @@ The 33-feature set was run **twice**, and the two runs answer different question
 | Run | Date | DCFM implementation | DCFM accuracy | Meaning |
 |---|---|---|---|---|
 | First | **2026-06-24** | pre-realignment | **still 100%** | Leakage persists even on the supervisor's own features → the problem is the *implementation*, not the feature list |
-| Second | **2026-07-13 → 07-15** | realigned + normalised, inside the 128-feature dataset | reasonable (then leakage re-analysed in depth) | The full pilot campaign and the leakage study of [Part V](#step-26) |
+| Second | **2026-07-13 → 07-15** | realigned + normalised, inside the 128-feature dataset | reasonable (then leakage re-analysed in depth) | The full pilot campaign and the leakage study of [Part V](#step-27) |
 
 ### After the realignment
 The learning code was then upgraded to a higher level, and the sample was regenerated for
 **all** defenses over the full **128** features (95 Core + 33 V2), with every feature that
 needed normalisation normalised beforehand. That regenerated dataset is the subject of
-[Part V](#step-26).
+[Part V](#step-27).
 
 ### Sources
 - Defense: {ref(D_GCOP)}, {ref(D_GCOP_H)}
@@ -1886,24 +1980,38 @@ md("""
 *July 2026*
 ---
 
-After the realignment and normalisation of [Part IV](#step-25), the learning was re-run —
+After the realignment and normalisation of [Part IV](#step-26), the learning was re-run —
 this time with a **second, leaner pipeline**, `defense_detection_v4`, on the normalised
 128-feature dataset. This is the project's **most recent** ML work (git 2026-07-19). It
 consolidates the instructor's earlier `defense_detection_v2` with the rigour of the
 `defense_ml` package, and it re-derives — on the *normalised* data — the same leakage story
 Campaign 1 established, then surfaces one further concern (the **normalisation hypothesis**,
-[Step 31](#step-31)) that sits on top of Campaign 1's cleaner feature audit.
+[Step 32](#step-32)) that sits on top of Campaign 1's cleaner feature audit.
 
 > The short version is unchanged from Campaign 1: the model was not learning network
 > behaviour, it was reading configuration constants off the wire. What Campaign 2 adds is a
 > controlled ablation ladder (32 → 29 → 26 → 76 features) on the normalised dataset, and the
 > observation that **normalisation can re-introduce a leak that feature-removal alone cannot
 > close**.
+
+> **Provenance of the pipeline — who wrote what.** The single-file structure, the control
+> flow, the engineered feature families (CDR, TDR, QoS, delay/hop ratios and the
+> log/sqrt/x²/x³ transforms), the multi-criterion feature selection, the model pool including
+> Stacking, and the probability-calibration and threshold-tuning machinery all come from the
+> supervisor's earlier `defense_detection_v2`. This project's additions are concentrated in
+> the **statistical-validation layer**: the grouped repeated cross-validation and its runtime
+> guard, moving calibration and thresholding inside the fold, the `Dummy` chance floor, the
+> `TPR@FPR` operating points, the grouped permutation test, LaTeX export, and the CLI
+> feature-subset selection without which the ablation ladder of [Steps 29–34](#step-29) could
+> not have been run at all. The division is worth stating plainly: **the pipeline is largely
+> inherited; what this project contributed is the apparatus that decides whether its numbers
+> are believable** — which, given that the central finding of both campaigns is that early
+> numbers were *not* believable, turned out to be the part that mattered.
 """)
 
 md(f"""
-<a id="step-26" name="step-26"></a>
-## Step 26 — The 128-feature schema
+<a id="step-27" name="step-27"></a>
+## Step 27 — The 128-feature schema
 
 ### Definition
 The schema is defined in {ref(FEATURES)} via the `FeatureMode` enum **[VERIFIED by
@@ -1916,7 +2024,7 @@ direct column count from source]**:
 | `CoreAndV2` | A–L | **128** |
 
 - The **Core-95** set is the project's own, distilled from ~150 candidates via the
-  filtering of Steps 3 and 17.
+  filtering of Steps 3 and 18.
 - The **V2-33** set was supplied by **Nadav Schweitzer**, first author of the DCFM paper
   and project supervisor.
 - The dataset is emitted in `CoreAndV2` mode — hence `dataset_128_all_defenses`.
@@ -1933,7 +2041,7 @@ and are auto-removed by the constant-feature filter. **The effective base is the
 
 ### Slicing, not re-simulating — a key methodological property
 Because the dataset is emitted over all 128 features, **any subset can be trained on by
-slicing the vectors** — no re-simulation is required. Every experiment in Steps 21–23
+slicing the vectors** — no re-simulation is required. Every experiment in Steps 29–31
 draws on the *same* dataset. This is what made the ablation study cheap enough to run at
 all, and it means the comparisons are exact: identical runs, identical windows, only the
 feature columns differ.
@@ -1947,12 +2055,12 @@ the header. This report follows the source. See [Open Questions](#open-questions
 ### Sources
 - Schema: {ref(FEATURES)}
 - Pipeline: {refml(ML_PIPE)}
-- Normalisation spec: `OLSR_Feature_Normalization_Table.docx` — **central to [Step 31](#step-31)**
+- Normalisation spec: `OLSR_Feature_Normalization_Table.docx` — **central to [Step 32](#step-32)**
 """)
 
 md(f"""
-<a id="step-27" name="step-27"></a>
-## Step 27 — Dataset generation
+<a id="step-28" name="step-28"></a>
+## Step 28 — Dataset generation
 **Date:** 2026-07-13
 
 ### Design
@@ -2006,7 +2114,7 @@ V2) and `windows_labels.csv`.
 ### ⚠️ A design consequence that matters enormously later
 **All simulations use a single network configuration** — N = 50, fixed grid, fixed window
 length. Therefore **feature normalisation intended to support generalisation across
-network sizes provides no benefit in this experiment** — while, as [Step 31](#step-31)
+network sizes provides no benefit in this experiment** — while, as [Step 32](#step-32)
 argues, potentially causing severe harm. Normalisation was introduced for a benefit this
 dataset cannot realise.
 
@@ -2015,8 +2123,8 @@ dataset cannot realise.
 """)
 
 md(f"""
-<a id="step-28" name="step-28"></a>
-## Step 28 — Experiment 1: baseline on 32 features; leakage discovered
+<a id="step-29" name="step-29"></a>
+## Step 29 — Experiment 1: baseline on 32 features; leakage discovered
 **Runtime:** 80 min (8 runs) · **Results:** `scripts_for_all_128/step28_exp1_baseline_32/results_run1/`
 
 ### Pipeline
@@ -2025,19 +2133,51 @@ md(f"""
 | Stage | Description |
 |---|---|
 | [1] Loading | Merge `windows_features.csv` + `windows_labels.csv` on `run_id`, `scenario` |
-| [2] Feature engineering | Mechanism-based composites (ratios, products) + monotone transforms (log1p, sqrt, squared, cubed) |
-| [3] Selection | **Refit per fold**: constant removal, correlation pruning (\\|r\\| > 0.95), optional rank aggregation |
+| [2] Feature engineering | Mechanism-based composites — **CDR**, **TDR**, **QoS**, and delay/hop ratios — plus monotone transforms (log1p, sqrt, squared, cubed) applied **dynamically to every selected feature** rather than to a fixed hand-written list |
+| [3] Selection | **Refit per fold**: constant removal, correlation pruning (\\|r\\| > 0.95), and multi-criterion rank aggregation over **mutual information, ANOVA F, RandomForest and ExtraTrees** importances |
 | [4] Model pool | Dummy, LogisticRegression, Ridge, SVM-RBF, MLP, RandomForest, ExtraTrees, HistGB, AdaBoost, LightGBM, XGBoost, CatBoost, Stacking — **13 models** |
 | [5] CV | Repeated StratifiedGroupKFold (2×5), **grouped by `run_id`**, with a guard that raises if a run spans train/test |
-| [6–7] Reporting | Permutation test, LaTeX table, figures |
+| [6–7] Reporting | Every metric as **mean ± sd across folds with a Nadeau-Bengio corrected confidence interval** (the correction for the dependence between overlapping training sets in repeated CV); grouped permutation test; LaTeX table; figures |
 
-**Why the protocol can be trusted:** grouping by `run_id` prevents windows from the same
-simulation appearing in both train and test; selection is refit **inside** each fold, so
-there is no selection leakage; and `Dummy` returns **exactly AUC = 0.5000** in every run,
-confirming the evaluation is unbiased. *The leakage found below is in the data, not in
-the protocol.*
+**Why the protocol can be trusted.** Four guards, and the third is the one most easily
+overlooked:
 
-Feature expansion: 32 base → **182** engineered columns.
+1. **Grouping by `run_id`** prevents windows of the same simulation from appearing in both
+   train and test, enforced by a runtime guard that raises if a run ever spans the split.
+2. **Selection is refit inside each fold** — constant removal, correlation pruning and rank
+   aggregation all see training data only — so there is no selection leakage.
+3. **Probability calibration and decision thresholds are fitted inside the fold too**, on an
+   inner **80/20 calibration split** of the training portion. This matters more than it
+   looks: `TPR@1%FPR` and MCC are threshold-dependent, so an operating point chosen on data
+   the model is then scored against would inflate precisely the operational metrics that
+   [Step 30](#step-30) goes on to rely upon. **No number in this report was measured on data
+   that took part in any stage of its own model's fitting.**
+4. **`Dummy` returns exactly AUC = 0.5000** in every run, pinning the chance floor and
+   confirming the evaluation is unbiased.
+
+*The leakage found below is in the data, not in the protocol.*
+
+Feature expansion: 32 base → **182** engineered columns — the multiplier is stage [2]
+applying the four transforms to every surviving feature, which is also the mechanism that
+[Step 31](#step-31) later finds capable of *reconstructing* a removed leak from features
+screened as clean.
+
+### A documented omission — no synthetic oversampling
+`defense_detection_v2` applied **SMOTE**; v4 does not. Two independent reasons, either of
+which would be sufficient:
+
+1. **The class balance is a property of the experimental design, not of luck.** Every
+   simulation emits two defense-OFF and two defense-ON windows, verified exactly in
+   [Step 28](#step-28) (4,010 / 4,010 for FPNT/static). There is no minority class to
+   oversample.
+2. **Synthetic interpolation contradicts the grouped split.** SMOTE manufactures points
+   between existing samples; interpolating between windows of *different* runs would
+   fabricate rows belonging to no `run_id` at all — dissolving exactly the group structure
+   that guard 1 above exists to enforce. A resampler that cannot honour the grouping has no
+   place inside a grouped protocol.
+
+Recorded because it is a **removal**, and removals leave no trace in the code they are
+absent from.
 
 ### Results **[VERIFIED]**
 | Defense | Mobility | ROC-AUC | MCC | TPR@1%FPR |
@@ -2085,8 +2225,8 @@ under mobility is non-linear** and is not recoverable by linear decision boundar
 """)
 
 md("""
-<a id="step-29" name="step-29"></a>
-## Step 29 — Experiment 2: univariate screen and ablation to 26 features
+<a id="step-30" name="step-30"></a>
+## Step 30 — Experiment 2: univariate screen and ablation to 26 features
 **Runtime:** ~160 min (16 runs) · **Results:** `scripts_for_all_128/step29_exp2_ablation_26/results_run2_behavioral/`
 
 ### The screen **[VERIFIED]**
@@ -2200,8 +2340,8 @@ different criterion could select a different model.
 """)
 
 md("""
-<a id="step-30" name="step-30"></a>
-## Step 30 — Experiment 3: expansion to 76 features; leakage returns
+<a id="step-31" name="step-31"></a>
+## Step 31 — Experiment 3: expansion to 76 features; leakage returns
 **Runtime:** 134 min (8 runs) · **Results:** `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/`
 
 ### Motivation
@@ -2306,7 +2446,7 @@ the thesis.
 | 2 | `TcMessageSizeMeanPerNode` | `TcMessageSizeMaxToMeanRatio` (+ interaction) |
 
 **Every feature touching TC message size reveals FPNT.** This raises a question that
-**feature removal cannot answer** — see [Step 31](#step-31).
+**feature removal cannot answer** — see [Step 32](#step-32).
 
 ### Secondary observation — importance diagnostics fail under redundancy **[VERIFIED]**
 For DCFM/mobile, the **maximum** importance is **0.023**, all values diffuse. This is
@@ -2322,13 +2462,13 @@ by this method** and requires grouped permutation or leave-one-group-out.
 """)
 
 md("""
-<a id="step-31" name="step-31"></a>
-## Step 31 — Root-cause analysis: the normalisation hypothesis
+<a id="step-32" name="step-32"></a>
+## Step 32 — Root-cause analysis: the normalisation hypothesis
 
 > ## ⚠️ [HYPOTHESIS — NOT YET TESTED]
 > **This section is a hypothesis.** It is consistent with all observations and with the
 > project's own normalisation documentation, but **no test has been run**. It must be
-> verified before being reported as a finding. **No result in [Step 29](#step-29) may be
+> verified before being reported as a finding. **No result in [Step 30](#step-30) may be
 > reported as final until this is tested.**
 
 ### The proposed mechanism
@@ -2375,7 +2515,7 @@ This predicts **exactly** the asymmetry observed for
 ### If confirmed, the implication is structural
 **The leak is not in any individual feature but in the normalisation denominator, and it
 is inherited by every feature sharing that denominator.** No amount of feature removal
-can eliminate it — **which is precisely the whack-a-mole pattern of [Step 30](#step-30)**.
+can eliminate it — **which is precisely the whack-a-mole pattern of [Step 31](#step-31)**.
 
 ### A competing explanation that must be excluded
 An alternative account of the DCFM/mobile anomaly is that **the DCFM/mobile data were
@@ -2393,7 +2533,7 @@ Compute, for each condition:
 
 **If the denominators leak, the remediations are:**
 - **(a)** re-emit features **without** normalisation — valid here, since the
-  single-configuration design gains nothing from it ([Step 27](#step-27)); or
+  single-configuration design gains nothing from it ([Step 28](#step-28)); or
 - **(b)** normalise by a **configuration constant** (the known N = 50) rather than by an
   observed, defense-sensitive quantity; or
 - **(c)** disable composite/transform engineering (`--no-engineered --no-transforms`) to
@@ -2404,25 +2544,25 @@ Compute, for each condition:
 # PART IV
 # ==========================================================================
 md(f"""
-<a id="step-32" name="step-32"></a>
-## Step 32 — Experiment 2b: single- and pair-feature ablation of the DCFM cluster
+<a id="step-33" name="step-33"></a>
+## Step 33 — Experiment 2b: single- and pair-feature ablation of the DCFM cluster
 **Date:** 2026-07-24 – 2026-07-26
 
 ### Motivation
-[Step 29](#step-29) could only compare two points: removing the two highest-MAX cluster
+[Step 30](#step-30) could only compare two points: removing the two highest-MAX cluster
 features (drop3 -> 29, DCFM barely moved) and removing all three cluster members
 (drop6 -> 26, DCFM collapsed to ~0.86). That leaves the middle unexplored. Is any **single**
 cluster member responsible for the DCFM leak? Is the cluster **redundant** (each member
 individually removable)? Or is there a **hierarchy** — some members stronger than others?
 This step fills the gap with two families of runs on the same 8 conditions, same
-`--drop-features` mechanism, leakage guard, and Dummy=0.5000 baseline as [Step 29](#step-29):
+`--drop-features` mechanism, leakage guard, and Dummy=0.5000 baseline as [Step 30](#step-30):
 - **single ablation** — drop3 + one cluster feature -> **28 features** (3 runs)
 - **pair ablation** — drop3 + two cluster features -> **27 features** (3 runs)
 
 The three cluster features are `AverageMprCount` (Mpr), `AverageAdvertisedLinksPerTCMessage`
 (Adv), and `NormalizedRoutingLoad` (NRL). Only DCFM is affected — each is a DCFM-only signal
 (univariate AUC ~0.5 elsewhere) — so the tables below report the two DCFM conditions; the
-other six conditions stayed within noise of their [Step 29](#step-29) values.
+other six conditions stayed within noise of their [Step 30](#step-30) values.
 
 ### Single-feature ablation (28 features) — DCFM
 Reference: drop3 (29) is DCFM static/mobile = 0.9721 / 0.9894; drop6 (26) ~0.86 / ~0.88.
@@ -2437,7 +2577,7 @@ Reference: drop3 (29) is DCFM static/mobile = 0.9721 / 0.9894; drop6 (26) ~0.86 
 | NRL | mobile | 0.9789 | 0.8591 | 0.7876 | `AverageMprCount` | 0.66 |
 
 Every single removal left DCFM at ~0.97–0.99, and the "moved-to" column shows the model
-migrating to whichever cluster members remain — the whack-a-mole of [Step 30](#step-30) made
+migrating to whichever cluster members remain — the whack-a-mole of [Step 31](#step-31) made
 explicit.
 
 ### Pair ablation (27 features) — DCFM
@@ -2475,8 +2615,8 @@ non-cluster interaction terms. So `Mpr` and `NRL` are the strong members; `Adv` 
 
 **[VERIFIED]** The effective core of the leak is the pair `{{Mpr, NRL}}`: as long as either is
 present DCFM stays ~0.97; only removing both (leaving Adv) begins the collapse, and removing all
-three (drop6 -> 26) completes it at ~0.86. This refines [Step 29](#step-29)'s drop6 result,
-which was stricter than necessary, and is consistent with [Step 31](#step-31): the members are
+three (drop6 -> 26) completes it at ~0.86. This refines [Step 30](#step-30)'s drop6 result,
+which was stricter than necessary, and is consistent with [Step 32](#step-32): the members are
 interchangeable carriers of the same normalisation-denominator signal, not independent features.
 
 > **Naming note:** the single-run sub-folders are named `Run_With_29_Features_Without_<X>`, but
@@ -2496,13 +2636,13 @@ interchangeable carriers of the same normalisation-denominator signal, not indep
 """)
 
 md(f"""
-<a id="step-33" name="step-33"></a>
-## Step 33 — Defense-independent features: from normalisation leakage to an observable, implementation-general set
+<a id="step-34" name="step-34"></a>
+## Step 34 — Defense-independent features: from normalisation leakage to an observable, implementation-general set
 **Date:** 2026-07-27
 
 ### Motivation
-[Step 31](#step-31) left the normalisation hypothesis **untested and blocking**: no
-[Step 29](#step-29) result was final until we knew whether the near-perfect scores came from
+[Step 32](#step-32) left the normalisation hypothesis **untested and blocking**: no
+[Step 30](#step-30) result was final until we knew whether the near-perfect scores came from
 defense *behaviour* or from a normalisation *denominator* that moves with the defense. With the
 feature schema {ref(FEATURES)} and the two defense implementations {ref(D_FPNT)} and
 {ref(D_GCOP)} in hand, we could finally settle this from source and then build a final feature
@@ -2531,8 +2671,8 @@ break is exactly aligned with what each defense does on the wire:
 
 Because many features share one denominator, the leak is **collective**: removing one feature
 just moves it to the next feature that divides by the same quantity. This is precisely the
-[Step 30](#step-30) whack-a-mole and the interchangeable `Mpr`/`NRL` carriers of
-[Step 32](#step-32) — they were never independent features, only different numerators over the
+[Step 31](#step-31) whack-a-mole and the interchangeable `Mpr`/`NRL` carriers of
+[Step 33](#step-33) — they were never independent features, only different numerators over the
 same contaminated denominator.
 
 **The fix (this step):** keep only features whose normalisation *cannot* carry a defense signal
@@ -2753,6 +2893,177 @@ estimate needs the full multi-size campaign — see [Open Questions](#open-quest
 - Outputs: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/results_run9_apriori21/")} and the transfer CSVs under `.../transfer_test/`
 """)
 
+md(f"""
+<a id="step-35" name="step-35"></a>
+## Step 35 — Generalisation as a pipeline capability: mobility transfer, the cross-defense matrix, and Leave-One-Defense-Out
+**Date:** 2026-07-29
+
+### Motivation — three open threads, one missing instrument
+[Step 34](#step-34) settled the final feature set on a principle it stated explicitly —
+**leakage does not survive a change of conditions, but a genuine signal does** — and used
+that principle to decide which features are admissible. It exercised the principle through
+{refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")}:
+a standalone script, written for one selection decision, over one axis (static ↔ mobile).
+A test that decides *which features are real* deserves to be a standing capability of the
+pipeline rather than a script that outlives its experiment by accident.
+
+The [planned full-scale campaign](#full-campaign) names **cross-defense generalisation** as
+its third research question and calls it *"the strongest available test that the learned
+features are behavioural rather than implementation-specific — and the one that matters
+most."* Campaign 2 had no instrument for it at all.
+
+[Campaign 1](#step-25) did build transfer and open-set modules
+({refml(DML + "/defense_ml/transfer.py", "transfer.py")},
+{refml(DML + "/defense_ml/openset.py", "openset.py")}) — but they live in the `defense_ml`
+package and were run on the **pre-realignment** DCFM over **un-normalised** data. Nothing
+carried them onto the normalised 128-feature dataset that [Steps 27–34](#step-27) analyse.
+
+This step folds all three capabilities into {refml(ML_PIPE)} itself.
+
+### What was added
+Three experiments, each **off by default** and enabled by a dedicated flag. They compose —
+one, two, or all three in a single invocation.
+
+| # | Experiment | Flag | Question it answers |
+|---|---|---|---|
+| 1 | **Mobility transfer** | `--transfer-mobility` | Does a model trained on a static network still detect the defense on a mobile one (and the reverse), per defense? |
+| 2 | **Cross-defense matrix** | `--transfer-defense` | N×N: trained on defense A, how well is each other defense recognised? |
+| 3 | **Leave-One-Defense-Out** | `--lodo` | Trained on three defenses, is the fourth — never seen — still detected? |
+
+> **Operational note.** When any transfer flag is given, the transfer experiments run
+> **instead of** that invocation's ordinary cross-validation, not alongside it.
+
+### The methodological core — the frozen source model
+In all three experiments "transfer" means one thing: a **frozen source model**. The fitted
+pipeline, the isotonic calibration, and the selected decision threshold are all determined
+on source data alone, then applied to the target with no re-fitting and no information from
+the target at any stage. Four guards make the resulting number mean what it claims:
+
+| # | Guard | Why it is load-bearing |
+|---|---|---|
+| 1 | **Nothing is re-fitted on the target** — pipeline, calibrator **and threshold** all frozen at source | Re-fitting *anything* on the target stops measuring transfer and starts measuring how well a target-tuned model can do — in-domain performance in a transfer experiment's clothes. **The threshold is the subtle one:** MCC and `TPR@1%FPR` are threshold-dependent, so quietly re-choosing the operating point on the target restores much of what the domain shift took away |
+| 2 | **Group namespacing** — `run_id` is prefixed to `<defense>/<run_id>` before any union | Two defenses number their runs from the same origin, so the same `run_id` exists in both and refers to unrelated simulations. Unioned unprefixed, `GroupShuffleSplit` would fuse their windows into one group — conservative in direction, but a silent corruption of the grouping the entire protocol rests on |
+| 3 | **Common-feature intersection** — the model is fitted and applied on the columns shared by every domain involved; the count is written to `n_features` in each output row and to the log | The monotone transforms (`log1p`, `sqrt`) are applied conditionally on the data, so two domains need not yield identical engineered column sets. Fitting on one and scoring on the other otherwise risks a hard failure or — worse — a silent fill |
+| 4 | **In-domain reference cells** — matrix diagonals use a grouped 70/30 holdout; LODO additionally reports `known_holdout_roc_auc` over the three seen defenses | A transfer number alone says nothing. ROC-AUC 0.78 on the target is strong if the same model scores 0.80 in-domain and weak if it scores 0.99. **The drop is the measurement, not the level** — so every unseen cell has its own control beside it, and even the "local" number is measured on runs the model never trained on |
+
+### The new surface
+| Flag | Default | Meaning |
+|---|---|---|
+| `--transfer-mobility` | off | Enable experiment 1 |
+| `--transfer-defense` | off | Enable experiment 2 |
+| `--lodo` | off | Enable experiment 3 |
+| `--transfer-model` | `auto` | Model used for the transfer experiments. `auto` resolves LightGBM → XGBoost → HistGB (first available); any name from the v4 model zoo is also accepted |
+
+One consequential side change: the default of `--defense` moved from `fpnt` to **`None`**.
+An ordinary run still selects `fpnt`, but `--transfer-mobility` without an explicit
+`--defense` now sweeps **all** defenses — the sensible default for an experiment whose
+whole point is comparison across defenses.
+
+```bash
+# static <-> mobile transfer, all four defenses
+python defense_detection_v4.py --transfer-mobility
+
+# defense-to-defense matrix, both mobility regimes
+python defense_detection_v4.py --transfer-defense --mobility both
+
+# all three experiments, both regimes, with an explicit model
+python defense_detection_v4.py --transfer-mobility --transfer-defense --lodo \\
+    --mobility both --transfer-model HistGB
+```
+
+The new code is confined to one section, **`[9] Transfer experiments`**, placed ahead of
+the CLI:
+
+| Function | Role |
+|---|---|
+| `pick_transfer_model` | Resolves `--transfer-model auto` to the strongest available booster |
+| `load_engineered_condition` | Loads one (defense, mobility) condition and applies **exactly** the CV path's feature engineering, with the defense-prefixed groups |
+| `common_columns` | The feature-column intersection across the domains involved |
+| `fit_frozen_model` | Fits on one domain under the standard calibration and threshold-selection protocol; returns calibrated model + threshold |
+| `score_frozen_model` | Evaluates a frozen model on a target domain **at the source's threshold** |
+| `in_domain_reference` | The grouped 70/30 holdout that fills the diagonal |
+| `save_transfer_heatmap` | Renders a transfer matrix |
+| `run_transfer_mobility` / `run_transfer_defense` / `run_lodo` | The three experiment drivers |
+| `run_transfer_experiments` | Entry point when any transfer flag is given; also writes `transfer_config.json` |
+
+### Containment — why no earlier result moves
+The core CV and statistics path is **untouched**: `make_splits`, `eval_fold`, `aggregate`
+and the permutation test are unchanged, and the new section reuses `load_dataset`,
+`engineer_features`, `make_pipeline_for`, `_calibrate_prefit` and `tpr_at_fpr` rather than
+reimplementing them. Combined with the flags being off by default, this means **no number
+reported in [Steps 29–34](#step-29) is affected by this change** — worth stating outright,
+because a modification to the pipeline that produced the report's results would otherwise
+put every one of those results back in question.
+
+### Outputs
+Written to `{DML}/results/30_schema33/paper_v4/transfer/` (the v4 default results root, or
+whatever `--results-dir` selects):
+
+| File | Contents |
+|---|---|
+| `transfer_mobility.csv` | Experiment 1 — every cell of every defense |
+| `transfer_defense_<mobility>.csv` | Experiment 2 — one matrix per mobility regime |
+| `lodo_<mobility>.csv` | Experiment 3, including the `known_holdout_*` reference columns |
+| `transfer_config.json` | Reproduction manifest — model, seed, feature set, which experiments ran, timestamp |
+| `figures/transfer_mobility_<defense>.png` | 2×2 heatmap per defense |
+| `figures/transfer_defense_<mobility>.png` | N×N heatmap |
+| `figures/lodo_<mobility>.png` | Known-defenses vs. unseen-defense bar chart |
+
+Every CSV row carries the full metric set — `roc_auc`, `pr_auc`, `balanced_accuracy`, `f1`,
+`mcc`, `tpr_at_fpr01`, `tpr_at_fpr05`, `threshold` — alongside `n_features`, `n_train`,
+`n_test` and the source/target identifiers. Reporting `TPR@1%FPR` beside ROC-AUC is not
+decoration: [Step 30](#step-30) showed AUC compressing a 5.6-fold operational collapse into
+a −0.16 change, and a transfer table read on AUC alone would hide the same thing.
+
+### Status — [VERIFIED]
+| Check | Result |
+|---|---|
+| `python -m py_compile defense_detection_v4.py` | passes |
+| `--help` | lists all four new flags |
+| Smoke test (`--limit-runs 30`), all three experiments | completes; every CSV and figure written |
+| Full run — three experiments × four defenses × two mobility regimes | completes, **exit code 0**; all outputs written |
+| Behaviour with no transfer flag given | unchanged from before this step |
+
+### What is **not** claimed here
+> **This step documents an instrument, not a result.** The full run completed and the tables
+> exist, but **no cell of any transfer matrix has been analysed or reported in this report.**
+> Nothing in this step may be cited as a finding about generalisation. The result tables are
+> the *input* to the next step, not its conclusion.
+
+### Pre-registered predictions — [HYPOTHESIS]
+Recorded **before** the tables were read, for the same reason [Step 30](#step-30) fixed its
+removal criterion in advance: a threshold chosen after seeing the scores is not defensible.
+
+| Experiment | Prediction | Grounding |
+|---|---|---|
+| 1 — mobility | FPNT ≈ 1.00 in both directions; DCFM strong (≈ 0.94 mobile → static on the 21-set); **TRUST and WATCHDOG ≈ 0.50** | [Step 34](#step-34) §B measured exactly this with the standalone script |
+| 2 — defense → defense | Off-diagonal near chance throughout. Specifically **FPNT ↮ DCFM**, because the 21-set's FPNT features (TC size and per-node TC bytes) and DCFM features (advertised-address entropy, advertised-graph structure) are **disjoint mechanism families**; and TRUST/WATCHDOG rows *and* columns near chance, because the 21-set encodes no TRUST or WATCHDOG signature at all | [Step 34](#step-34) §D; [Step 25](#step-25)'s *"low transfer is expected — and is itself a result"* |
+| 3 — LODO | A large gap between `known_holdout_roc_auc` (high) and the unseen defense (low), for the same reason: the surviving features are mechanism-specific, so a defense whose mechanism was never in training has nothing for the model to recognise | [Step 34](#step-34) §D |
+
+> **Experiment 1 overlaps [Step 34](#step-34) §B by construction — deliberately.** It
+> re-derives, inside the pipeline, a result already measured by an independent script. If
+> the two disagree, one of the two implementations is wrong. The first experiment is
+> therefore also the instrument's own control.
+
+### A distinction worth preserving
+The LODO implemented here is a **detection-transfer** test: a presence classifier trained on
+three defenses, evaluated on the fourth. It is **not** the open-set novelty scoring of
+[Step 25](#step-25) ({refml(DML + "/defense_ml/openset.py", "openset.py")}: max-softmax,
+Mahalanobis-to-nearest-centroid, IsolationForest, scored by OSCR), which asks whether an
+unseen defense can be flagged as *"other"* rather than mislabelled. The two answer different
+operational questions — *"would I still notice it?"* versus *"would I know I hadn't seen it
+before?"* — and only the first exists in v4 today.
+
+### Sources
+- Pipeline: {refml(ML_PIPE)} — new section `[9] Transfer experiments`
+- Outputs: `{DML}/results/30_schema33/paper_v4/transfer/` (`transfer_mobility.csv`,
+  `transfer_defense_<mobility>.csv`, `lodo_<mobility>.csv`, `transfer_config.json`, `figures/`)
+- Antecedents: {refml(DML + "/defense_ml/transfer.py", "transfer.py")} and
+  {refml(DML + "/defense_ml/openset.py", "openset.py")} (Campaign 1);
+  {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")} (Step 34)
+- Feature set under test: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_apriori_lenient.txt", "features_apriori_lenient.txt")}
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -2768,10 +3079,10 @@ These cannot be resolved by analysis alone.
 
 | # | Question | Why it decides something |
 |---|---|---|
-| 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. **Addressed ([Step 33](#step-33)):** FPNT's TC enlargement survives the static<->mobile transfer test (ROC-AUC 1.000 both directions), so detection via TC size is a legitimate, generalising finding — though confirmed against a *single* implementation only. |
+| 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. **Addressed ([Step 34](#step-34)):** FPNT's TC enlargement survives the static<->mobile transfer test (ROC-AUC 1.000 both directions), so detection via TC size is a legitimate, generalising finding — though confirmed against a *single* implementation only. |
 | 2 | **Does DCFM's mechanism inherently alter MPR structure and TC advertisement?** | Determines whether the DCFM cluster (`AverageMprCount`, `AdvertisedLinks`, `NormalizedRoutingLoad`) is a legitimate signature or an artefact. |
-| 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 31](#step-31)). |
-| 4 | **Does forcing `RtsCtsThreshold = 0` on small packets constitute a cheat for the model?** | Raised at the 2026-05-18 meeting ([Step 17](#step-17)). Two defenses force RTS/CTS; if the classifier reads that, it is reading our configuration, not the defense. **This question anticipated the whole leakage analysis and is still open.** |
+| 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 32](#step-32)). |
+| 4 | **Does forcing `RtsCtsThreshold = 0` on small packets constitute a cheat for the model?** | Raised at the 2026-05-18 meeting ([Step 18](#step-18)). Two defenses force RTS/CTS; if the classifier reads that, it is reading our configuration, not the defense. **This question anticipated the whole leakage analysis and is still open.** |
 
 > **The framing that resolves Q1–Q2** is *not* whether a feature name sounds behavioural,
 > but **why its value changes**. A **behavioural** feature changes because the network
@@ -2784,19 +3095,19 @@ follows the logs.**
 | # | Discrepancy | Log says | Recollection said |
 |---|---|---|---|
 | 5 | **The "67-feature group"** | The string `67` appears in **neither** `olsr_window_features.h` **nor** `defense_detection_v4.py`. Only 95 / 33 / 128 are formally defined; "32" is derived in Python | A 67-feature group was used for several experiments |
-| 6 | ~~**Date of the 33-feature (V2) set**~~ **RESOLVED** ([Step 25](#step-25)) | The 128-feature dataset and analysis are dated **2026-07-13 → 07-15** | The 33 features were first run **2026-06-24** — **both are correct**: an early run on 24 June (pre-DCFM-realignment, still 100%) *and* the July campaign after realignment |
+| 6 | ~~**Date of the 33-feature (V2) set**~~ **RESOLVED** ([Step 26](#step-26)) | The 128-feature dataset and analysis are dated **2026-07-13 → 07-15** | The 33 features were first run **2026-06-24** — **both are correct**: an early run on 24 June (pre-DCFM-realignment, still 100%) *and* the July campaign after realignment |
 | 7 | **The 2026-05-01 DCFM fix** | The fix that restored `defense_pdr` to 100% is **F5 — the two-consecutive-violations confirmation policy**. Rule 2 had already been disabled on 2026-04-16/17, for ANSN poisoning | "I removed Rule 2 from the contradiction rules" |
 | 8 | **Defense numbering** | `session_report_2026-05-01` calls GCOP "**Defense #1**"; other logs call it "**Defense 3**" | — |
 
 ### C. Methodological items still outstanding
 | # | Item | Status |
 |---|---|---|
-| 9 | ~~**Test the normalisation hypothesis** ([Step 31](#step-31))~~ **RESOLVED** ([Step 33](#step-33)) | Confirmed from source: `AvgTxPacketSize` divides by mean all-packet size (FPNT padding), the MPR/advertised family divides by `nObs` (inflated by DCFM's `main+65536` injection). A leak-free, observable, implementation-general 21-feature set is now established |
-| 10 | **Dynamic-attacker selection is too loose** | ~70% of successful runs have an **off-path** attacker → their `attack` vectors are indistinguishable from `baseline`, injecting ~70% noise. Fix: select the attacker as the **actual next hop** in Node 1's routing table toward Node 0 ([Step 15](#step-15)) |
+| 9 | ~~**Test the normalisation hypothesis** ([Step 32](#step-32))~~ **RESOLVED** ([Step 34](#step-34)) | Confirmed from source: `AvgTxPacketSize` divides by mean all-packet size (FPNT padding), the MPR/advertised family divides by `nObs` (inflated by DCFM's `main+65536` injection). A leak-free, observable, implementation-general 21-feature set is now established |
+| 10 | **Dynamic-attacker selection is too loose** | ~70% of successful runs have an **off-path** attacker → their `attack` vectors are indistinguishable from `baseline`, injecting ~70% noise. Fix: select the attacker as the **actual next hop** in Node 1's routing table toward Node 0 ([Step 16](#step-16)) |
 | 11 | **Rule 1c residual false positives** | Options: (A) disable Rule 1c (Rule 1b alone gave 100% detection); (B) require **three** consecutive violations for 1c; (C) exclude blacklisted addresses from 1c verification. **Decision required before feature extraction** |
 | 12 | **Data provenance** | Relationship between `~/dataset_paper/` and `dataset_128_all_defenses` was never independently audited |
 | 13 | **Seed-set breadth** | Ten seeds sufficed for calibration; the 87.78% Watchdog figure is **not statistically robust**. 50–100 seeds warranted |
-| 14 | **Training distribution is 1-hop-attacker only** | A model expected to generalise to *n*-hop attackers needs the generator to sample attacker hop-distance ([Step 15](#step-15)) |
+| 14 | **Training distribution is 1-hop-attacker only** | A model expected to generalise to *n*-hop attackers needs the generator to sample attacker hop-distance ([Step 16](#step-16)) |
 """)
 
 md("""
@@ -2804,7 +3115,7 @@ md("""
 ## Planned Full-Scale Campaign
 
 The 2,000-simulation dataset is a **pilot** whose purpose was to identify a
-leakage-free, behavioural feature set. That objective is **not yet met** — [Step 31](#step-31)
+leakage-free, behavioural feature set. That objective is **not yet met** — [Step 32](#step-32)
 must be resolved first. The full campaign, once the feature set is settled:
 
 ### Per defense
@@ -2836,7 +3147,7 @@ experiment-design level, and a direct response to the lessons of Part III.
 > `out_watchdog_ordered/`, `out_watchdog_shuffled/`) are already present in the repository
 > root — the randomised-order campaign is underway.
 
-> **Cost warning from [Step 15](#step-15):** ~65–70% of seeds are rejected for incomplete
+> **Cost warning from [Step 16](#step-16):** ~65–70% of seeds are rejected for incomplete
 > connectivity. Reaching 10,000 **successful** runs requires attempting roughly
 > **30,000–40,000 seeds** per cell.
 
@@ -2847,6 +3158,15 @@ experiment-design level, and a direct response to the lessons of Part III.
    defense correctly classify vectors of **another**? This is the strongest available
    test that the learned features are behavioural rather than implementation-specific —
    and, given Part III, the one that matters most.
+
+> **The instrument for question 3 now exists** ([Step 35](#step-35)). `defense_detection_v4.py`
+> carries three flag-gated generalisation experiments — `--transfer-mobility` (static ↔ mobile),
+> `--transfer-defense` (the N×N cross-defense matrix that question 3 asks for) and `--lodo`
+> (train on three defenses, test on the unseen fourth) — all under a frozen-source-model
+> protocol in which nothing, including the decision threshold, is re-fitted on the target.
+> They have been run end to end on the pilot dataset; **their tables have not yet been
+> analysed.** When the full campaign lands, question 3 is a re-run of an existing experiment
+> on more data rather than a new piece of engineering.
 
 ### Training protocol
 Static and dynamic are trained **separately**, per defense.
@@ -2905,7 +3225,7 @@ Each defense also exposes a read-only `GetDebugStateSizes()` returning the raw s
 its state containers (**not** gated by `Enabled`), surfaced by the harness's
 `--debugDefenseState` flag: immediately after a cold start every size must read zero, and
 any non-zero value is direct evidence of a cross-window leak. This is the on-air, in-code
-counterpart to the *data*-level leakage analysis of [Part III](#step-20).
+counterpart to the *data*-level leakage analysis of [Part III](#step-21).
 """)
 
 md(f"""
@@ -2961,7 +3281,7 @@ it records packets it forwarded (`m_pendingByNeighbor`), listens promiscuously v
 intentional drop from a collision. Notable, all in the code:
 - **MAC↔IP learned from broadcasts only** (`m_macToIp`), because a *unicast* frame's L2
   source is the forwarder while its IP source is the original sender — learning from
-  unicast would reverse the mapping ([Step 12](#step-12)).
+  unicast would reverse the mapping ([Step 13](#step-13)).
 - **Self-reliability (Algorithm B):** `PhyRxDropCallback` counts local PHY drops;
   `UpdateSelfReliability` scales the effective threshold up when the node's own reception
   is noisy, so a bad listener does not accuse others.
@@ -2969,7 +3289,7 @@ intentional drop from a collision. Notable, all in the code:
   (`MinDataObservations`, `MacFailureRateThreshold`, `ProbationDuration`), and evidence
   decay. The calibrated defaults live in `GetTypeId` (`BlacklistThreshold=3`,
   `ProbationDuration=2 s`, `MinSelfReliability=0.6`, `MinDataObservations=2` —
-  [Step 16](#step-16)).
+  [Step 17](#step-17)).
 - Self-sufficient wiring: `AttachWifiTraces` / `DetachWifiTraces` connect the PHY traces
   directly (the routing core's sniffer hooks are not required), and `Enabled` triggers
   `ResetAccumulatedState`.
@@ -2987,7 +3307,7 @@ before Eq. 4/5 synthesis and temporal smoothing. Trust is **shared network-wide*
 evaluation vectors are piggybacked onto TC and consumed via `OnRecvEvaluationVectors`,
 and routing is trust-weighted (`RoutingProtocol::RunTrustDijkstra`, a max-min bottleneck
 criterion). This active, control-plane trust propagation is the very thing the ML model
-found easiest to detect ([Part III](#step-20)). A node is malicious iff its aggregated
+found easiest to detect ([Part III](#step-21)). A node is malicious iff its aggregated
 trust `T(V_j) < MaliciousThreshold`.
 
 ### `olsr-defense-gcop.{{cc,h}}` — Defense 3: DCFM (GCOP/GCOHP + contradiction rules)
@@ -3000,7 +3320,7 @@ attacker swallowing our own fictitious node), `CheckRule2` (MPR-coverage contrad
 over the topology set), `CheckRule3` (over-coverage). Separately, `RequiresFictitiousNode`
 decides whether to advertise a fictitious node to *provoke* a contradiction downstream,
 using `RunGcohpAlgorithm` (the hexagon test). Code-level facts that matter:
-- **"PROF PORT" (the 2026-07-10 realignment, [Step 25](#step-25)):** the file is now
+- **"PROF PORT" (the 2026-07-10 realignment, [Step 26](#step-26)):** the file is now
   byte-faithful to the paper author's reference — **no warmup, no penalty window, no
   strike counter**. The only state container is `m_riskyNodes`, recomputed from scratch on
   every HELLO (a node clears the instant it sends a clean HELLO).
@@ -3053,7 +3373,7 @@ selects the output: **Core** = groups A–K (**95** features, the project's own 
 **V2Only** = group L, the `strict_observable_v2` parity group (**33** features, supplied by
 the DCFM paper's author), **CoreAndV2** = **128**. The emit path is marked *"schema v5,
 normalised"* — scale-dependent features are divided by quantities like node count (the
-normalisation whose leakage risk [Step 31](#step-31) analyses). Design principles baked in
+normalisation whose leakage risk [Step 32](#step-32) analyses). Design principles baked in
 and directly relevant to Part III: features an on-network passive adversary *cannot*
 observe (HELLO-only quantities, 1-hop RTS/CTS/ACK) are excluded from the feature set and
 diverted to the oracle; defense-internal state, attacker-on-path, and defense config are
@@ -3091,14 +3411,14 @@ defense binding). What the shared harness does:
 
 The 50-node, four-phase validation harnesses on the fixed parameters (750×1000 m, 190 m
 range, dynamic 1-hop attacker) used to confirm each defense works before the full dataset
-runs ([Steps 15–16](#step-15)). `watchdogBaseSimulation.cc` is a parity clone of
+runs ([Steps 16–17](#step-16)). `watchdogBaseSimulation.cc` is a parity clone of
 `gcopBaseSimulation.cc` with only the defense binding changed, so their results are
 directly comparable. These pre-date, and fed into, the `*-eval-mitigation.cc` generators.
 
 ### `olsr-gcop-simulator.cc` — 8-node bridge validation
 {ref("scratch/olsr-gcop-simulator.cc")}
 
-The small, deterministic 8-node bridge proof-of-mechanism for DCFM ([Steps 8, 14](#step-8)):
+The small, deterministic 8-node bridge proof-of-mechanism for DCFM ([Steps 9, 15](#step-9)):
 Victim / Sender / Attacker / Relay / Helper + background, four phases, `--txRange` (use
 280 m), CSV out. Ideal for isolating one variable at a time; not comparable to the paper's
 50–100-node PDR curves.
@@ -3108,7 +3428,7 @@ Victim / Sender / Attacker / Relay / Helper + background, four phases, `--txRang
 {ref("scratch/olsr-watchdog-eval.cc")} ·
 {ref("scratch/olsr-watchdog-eval-highway.cc")}
 
-The Watchdog's own validation lineage ([Step 12](#step-12)): `-validation` is the 22-node
+The Watchdog's own validation lineage ([Step 13](#step-13)): `-validation` is the 22-node
 controlled scenario (five phases incl. `baseline_late`); `-eval` is the random-square
 evaluation (where hard-blacklist bridge isolation can collapse Tx); `-eval-highway` is the
 1000×200 m, 300 m-range highway matched to Baiad et al.'s original scenario (zero Tx
@@ -3144,12 +3464,12 @@ it. The **depth of each swap is itself informative**:
 > untouched. FPNT and TRUST *piggyback trust onto TC* and reason over trust-weighted
 > routing, so they must replace `olsr-header`/`olsr-state`/`olsr-repositories` and extend
 > the defense interface. This is the same passive/active axis that governs how detectable
-> each defense turned out to be in [Part III](#step-23) — the folder layout foreshadows the
+> each defense turned out to be in [Part III](#step-24) — the folder layout foreshadows the
 > ML result.
 
 The folder also holds {ref(f"{SWAP}/OLSR_Feature_Normalization_Table.docx", "OLSR_Feature_Normalization_Table.docx")},
 the specification of which features are normalised and by what — the primary reference for
-the normalisation hypothesis of [Step 31](#step-31).
+the normalisation hypothesis of [Step 32](#step-32).
 """)
 
 md(f"""
@@ -3177,12 +3497,12 @@ The earlier per-defense seed-sweep drivers for the *base* simulations
 (`gcopBaseSimulation.cc` / `watchdogBaseSimulation.cc`): sweep seeds until *N* successful
 runs, discard connectivity/attacker-selection rejects, print a per-run PDR table and
 optional CSV. Superseded for dataset generation by `run_simulations.sh`, but still the
-tools behind the validation numbers in [Steps 15–16](#step-15).
+tools behind the validation numbers in [Steps 16–17](#step-16).
 
 ### `multi-seed-eval.sh`, `multi-seed-eval-highway.sh`, `variance-test.sh`
 {ref("multi-seed-eval.sh")} · {ref("multi-seed-eval-highway.sh")} · {ref("variance-test.sh")}
 
-Multi-seed sweep wrappers used in the Watchdog evaluation lineage ([Step 12](#step-12)):
+Multi-seed sweep wrappers used in the Watchdog evaluation lineage ([Step 13](#step-13)):
 random-square and highway evaluations, and the 10-seed variance study whose exceptionally
 low `defense_vs_attack` stdev demonstrated the Watchdog is deterministic.
 """)
@@ -3232,7 +3552,7 @@ a non-empty blacklist"* counts false positives, and the attack/`defense_vs_attac
 measures recovery — all **outside** the ML feature set. The finished datasets were copied
 from `~/dataset_paper/<def>/All_128_features/` to
 `/mnt/d/Hananel/{{Watchdog,Dcfm}}_All_128_features/`, which is the provenance the ML report
-([Part V](#step-26)) analyses — resolving the caveat it flagged about the
+([Part V](#step-27)) analyses — resolving the caveat it flagged about the
 `~/dataset_paper/` path.
 """)
 
@@ -3257,7 +3577,8 @@ md("""
 14. *An Improved Security OLSR Protocol against Black Hole Attack Based on FANET*. IEEE. https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9828257
 15. *Solutions to Black Hole Attacks in MANETs*. IEEE. https://ieeexplore.ieee.org/document/9249524
 16. *New MPR Computation for Securing OLSR Routing Protocol Against Single Black Hole Attack*. — surveyed, not implemented
-17. **The ns-3 Consortium.** *ns-3 Network Simulator*. https://www.nsnam.org
+17. **Srinivasan, J.** (2025). *Innovative Cross-Layer Defense Mechanisms for Black Hole and Wormhole Attacks in Wireless Ad-Hoc Networks*. Scientific Reports (April 2025). — **shortlisted, attempted, abandoned**; the subject of this project's comment to the editor ([Step 6](#step-6))
+18. **The ns-3 Consortium.** *ns-3 Network Simulator*. https://www.nsnam.org
 """)
 
 md(f"""
@@ -3302,9 +3623,9 @@ set. The folder holds one subdirectory per defense:
 > onto TC messages — so they must also replace `olsr-header`, `olsr-state`, and
 > `olsr-repositories`. The depth of the swap is a direct signature of whether a defense is
 > passive (data-plane observation) or active (control-plane modification) — the same
-> distinction that governs how detectable each defense is in [Part III](#step-23).
+> distinction that governs how detectable each defense is in [Part III](#step-24).
 
-The normalisation table {ref(f"{SWAP}/OLSR_Feature_Normalization_Table.docx", "OLSR_Feature_Normalization_Table.docx")} — central to [Step 31](#step-31) — also lives here.
+The normalisation table {ref(f"{SWAP}/OLSR_Feature_Normalization_Table.docx", "OLSR_Feature_Normalization_Table.docx")} — central to [Step 32](#step-32) — also lives here.
 
 ### NS-3 — features
 | Component | File |
@@ -3336,7 +3657,7 @@ The normalisation table {ref(f"{SWAP}/OLSR_Feature_Normalization_Table.docx", "O
 
 ### ML — repository `hananelk26/ML-for-NS3` (branch `main`) *(private — paths shown, not linked)*
 
-**Campaign 1 — the `defense_ml` package** ([Part III](#step-19)), at `{DML}/`:
+**Campaign 1 — the `defense_ml` package** ([Part III](#step-20)), at `{DML}/`:
 
 | File | Role |
 |---|---|
@@ -3358,12 +3679,12 @@ reorganised (2026-07-02) into a numbered layer (`results/README.md` maps old →
 | Path (under `{DML}/results/`) | Contents → report step |
 |---|---|
 | `00_summary/` | **Master tables** — `SUMMARY.md`, `ML_results_master.xlsx`, and `tables/` (`detection_master.csv`, `detection_pivot.csv`, `dominant_features_master.csv`, `efficacy_pdr_master.csv`, `trust_tradeoff.csv`, `experiment_index.csv`) |
-| `10_core_detection/` | Clean-58 detection + the 95-vs-58 contrast → [Step 20](#step-20), [Step 22](#step-22) |
-| `20_observability_ladder/` | The 95→67→18 ladder + external-observer campaign (`external/`, `ladder/`) → [Step 22](#step-22) |
-| `30_schema33/` | The 33-schema runs (+ the instructor's `lecturer_v2_verbatim`/`lecturer_v3`, and `paper_v4/` = the v4 default output dir) → [Step 21](#step-21), [Step 23](#step-23) |
-| `40_trust_defense/` | Trust 1.0/2.0 binary, `permutation_null/`, `improvement_sweep/` → [Step 23](#step-23) |
-| `50_generic_features/` | Generic set + Leave-One-Defense-Out (`lodo_audit/`) → [Step 24](#step-24) |
-| `70_publication/` | Transfer / open-set / SHAP / LaTeX campaign (`core/`, `mixed/`, `publication/`) → [Step 24](#step-24) |
+| `10_core_detection/` | Clean-58 detection + the 95-vs-58 contrast → [Step 21](#step-21), [Step 23](#step-23) |
+| `20_observability_ladder/` | The 95→67→18 ladder + external-observer campaign (`external/`, `ladder/`) → [Step 23](#step-23) |
+| `30_schema33/` | The 33-schema runs (+ the instructor's `lecturer_v2_verbatim`/`lecturer_v3`, and `paper_v4/` = the v4 default output dir) → [Step 22](#step-22), [Step 24](#step-24) |
+| `40_trust_defense/` | Trust 1.0/2.0 binary, `permutation_null/`, `improvement_sweep/` → [Step 24](#step-24) |
+| `50_generic_features/` | Generic set + Leave-One-Defense-Out (`lodo_audit/`) → [Step 25](#step-25) |
+| `70_publication/` | Transfer / open-set / SHAP / LaTeX campaign (`core/`, `mixed/`, `publication/`) → [Step 25](#step-25) |
 | `60_conference_poster/` | Historical poster runs |
 | `90_archive/` | Smoke tests — **do not cite** |
 
@@ -3375,15 +3696,15 @@ Each per-run leaf dir holds the standard `main.py` outputs: `best_per_task.csv`,
 Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are folded into
 `00_summary/` (marked `source=documented/xlsx`).
 
-**Campaign 2 — the `defense_detection_v4` pipeline** ([Part V](#step-26)), at the repo root.
+**Campaign 2 — the `defense_detection_v4` pipeline** ([Part V](#step-27)), at the repo root.
 
 *The pipeline*
 
 | File | Role |
 |---|---|
-| {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml`; 13 models, grouped CV, isotonic calibration, TPR@FPR |
+| {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them |
 
-*Key scripts in `scripts_for_all_128/` (runs 1–3 and Step 33)*
+*Key scripts in `scripts_for_all_128/` (runs 1–3 and Step 34)*
 
 | File | Role |
 |---|---|
@@ -3414,6 +3735,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `scripts_for_all_128/step29_exp2_ablation_26/results_run2_behavioral/` | `comparison_32_vs_29_vs_26.csv`, `three_metrics.csv`, `core95_scan.csv`, and `drop3/` + `drop6/` (each with the same 8 condition dirs) |
 | `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/` | `compare_26_vs_76.csv`, and 8 condition dirs (same per-condition file set as run 1) |
 | `scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/results_run9_apriori21/` | `apriori_comparison.csv`, the three per-metric pivots, 8 condition dirs (same per-condition file set as run 1), and `transfer_test/` (`full_set_transfer.csv`, `per_feature_transfer.csv`) |
+| `{DML}/results/30_schema33/paper_v4/transfer/` | **[Step 35](#step-35) generalisation experiments** (written under the v4 default results root, not under `scripts_for_all_128/`): `transfer_mobility.csv`, `transfer_defense_<mobility>.csv`, `lodo_<mobility>.csv`, `transfer_config.json` (reproduction manifest), and `figures/` (`transfer_mobility_<defense>.png`, `transfer_defense_<mobility>.png`, `lodo_<mobility>.png`) |
 
 ### Reproduction environment
 ```bash

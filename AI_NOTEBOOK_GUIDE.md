@@ -90,17 +90,17 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 33 steps)
+## 4. Notebook structure (7 parts, 35 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
 | Part | Steps | Topic |
 |---|---|---|
-| **I — Foundations** | 1–5 | Kick-off; OLSR/AODV study; literature + features; the attack; the defense interface |
-| **II — Defense Implementation** | 6–18 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
-| **III — ML Campaign 1 (`defense_ml`)** | 19–24 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
-| **IV — The Transition** | 25 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 26–33 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 33 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set |
+| **I — Foundations** | 1–6 | Kick-off; OLSR/AODV study; literature + features; the attack; the defense interface; the comment to *Scientific Reports* |
+| **II — Defense Implementation** | 7–19 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
+| **III — ML Campaign 1 (`defense_ml`)** | 20–25 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
+| **IV — The Transition** | 26 | DCFM realigned to the paper + feature normalisation |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–35 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — the three flag-gated generalisation experiments folded into the pipeline |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -154,6 +154,25 @@ list, and the **File Index** (which links NS-3 files and lists ML files + result
    ```
 
    Then manually fix any `[Part X](#step-M)` **labels** whose part changed, and rebuild.
+
+   > ⚠️ **The regex silently misses plural references.** `Step %d` does not match `Steps 28–33`,
+   > `Steps 8, 12, 14`, or `Steps 3 and 17` — the literal is `Step` + space, and these have
+   > `Steps` + space. The *anchor* in `[Steps 28–33](#step-28)` **is** rewritten by the
+   > `step-%d` pass, so you end up with correct links carrying wrong labels — and the §6
+   > validator cannot see it, because the link resolves. Before shifting, inventory them:
+   >
+   > ```bash
+   > grep -n -o -E "Steps [0-9]+[^)]{0,18}" build_notebook.py | sort -u
+   > ```
+   >
+   > and fix each by hand afterwards. After rebuilding, verify with:
+   >
+   > ```python
+   > bad = [(t,a) for t,a in re.findall(r'\[Steps? (\d+)[^\]]*\]\(#step-(\d+)\)', body) if t != a]
+   > ```
+   >
+   > Also re-check the **TOC list numbers** (they are plain markdown ordinals, untouched by the
+   > regex) and the **Part-range table in §4 of this guide**.
 
 3. **Links:** NS-3 files → `ref()` (clickable). ML files → `refml()` (path only). If the ML repo
    is ever made public, flip `refml` to emit a link (one function change) — until then, paths.
@@ -217,11 +236,11 @@ Each step folder holds both its scripts and its result tree, so a step is self-c
 
 | Folder | Notebook step | Contents |
 |---|---|---|
-| `step28_exp1_baseline_32/` | Step 28 | `run_all_defenses.sh`, `verify_features.py`, `rank_importance.py`, `per_defense_tables.py`, `results_run1/` |
-| `step29_exp2_ablation_26/` | Step 29 | `diagnose_leakage.py`, `run_behavioral.sh`, `compare_runs.py`, `three_metrics.py`, `results_run2_behavioral/` |
-| `step30_exp3_expansion_76/` | Step 30 | `scan_core95.py`, `build_features76.py`, `run_expanded.sh`, `compare_26_vs_76.py`, `features_clean.txt`, `results_run3_expanded/` |
-| `Step_32_Experiment_Between_26_and_29_Features/` | Step 32 | `run_drop4.sh`, `compare_drop4.py`, `step32_dcfm_summary.csv`, one `Run_*` sub-folder per single/pair ablation (each with its own `results_run4_drop4/`) |
-| `Step_33_Defense_Independent_Normalization_Features/` | Step 33 | `classify_apriori.py`, `run_apriori21.sh`, `compare_apriori.py`, `transfer_test.py`, `features_apriori_lenient.txt`, `results_run9_apriori21/` (+ `transfer_test/`) |
+| `step28_exp1_baseline_32/` | Step 29 | `run_all_defenses.sh`, `verify_features.py`, `rank_importance.py`, `per_defense_tables.py`, `results_run1/` |
+| `step29_exp2_ablation_26/` | Step 30 | `diagnose_leakage.py`, `run_behavioral.sh`, `compare_runs.py`, `three_metrics.py`, `results_run2_behavioral/` |
+| `step30_exp3_expansion_76/` | Step 31 | `scan_core95.py`, `build_features76.py`, `run_expanded.sh`, `compare_26_vs_76.py`, `features_clean.txt`, `results_run3_expanded/` |
+| `Step_32_Experiment_Between_26_and_29_Features/` | Step 33 | `run_drop4.sh`, `compare_drop4.py`, `step32_dcfm_summary.csv`, one `Run_*` sub-folder per single/pair ablation (each with its own `results_run4_drop4/`) |
+| `Step_33_Defense_Independent_Normalization_Features/` | Step 34 | `classify_apriori.py`, `run_apriori21.sh`, `compare_apriori.py`, `transfer_test.py`, `features_apriori_lenient.txt`, `results_run9_apriori21/` (+ `transfer_test/`) |
 | `_tools/` | — | `table.py` (quick AUC/MCC/TPR table for any results dir) |
 
 Conventions for this tree:
@@ -233,5 +252,11 @@ Conventions for this tree:
 - **git tracks only the small text outputs** (`.csv` / `.json` / `.tex`); heavy binaries are
   git-ignored via `**/final_model.pkl` and `**/figures/*.png`. When committing new runs, verify
   no `.pkl`/`.png` are staged before committing.
-- The Step-32 `Run_With_29_Features_Without_<X>` sub-folders are **28-feature** runs (the "29"
+- The Step-33 (folder `Step_32_…`) `Run_With_29_Features_Without_<X>` sub-folders are **28-feature** runs (the "29"
   is the drop3 starting point); `Run_Without_<X>_AND_<Y>` are **27-feature** runs.
+- **Step 35 breaks the per-step-folder pattern, deliberately.** Its work is a change to
+  `defense_detection_v4.py` itself (section `[9] Transfer experiments`) rather than a set of
+  step scripts, so it adds **no** folder here. Its outputs are written to the v4 default
+  results root — `defense_ml/defense_ml_project/results/30_schema33/paper_v4/transfer/` —
+  which sits in the *Campaign-1* results tree, because `paper_v4/` has always been v4's
+  default output directory. Look there, not under `scripts_for_all_128/`.
