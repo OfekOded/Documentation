@@ -19,6 +19,8 @@ REPO = "https://github.com/hananelk26/manet-olsr-project/blob/master"
 REPO_ML = "https://github.com/hananelk26/ML-for-NS3/blob/main"
 # defense_ml package root inside the ML repo (Campaign 1 pipeline).
 DML = "defense_ml/defense_ml_project"
+# Campaign-2 Step-34 folder (cross-defense LODO experiment).
+S34 = "scripts_for_all_128/Step_34_Cross_Defense_Intersection"
 OUT = Path(__file__).parent / "Defense_Detection_Project_Report.ipynb"
 
 # --------------------------------------------------------------------------
@@ -267,25 +269,26 @@ md("""
 33. [Experiment 2b — single-feature ablation of the DCFM cluster](#step-33) — 2026-07-24
 34. [Defense-independent features: normalisation leak, transfer, and the final 21-feature set](#step-34) — 2026-07-27
 35. [Generalisation as a pipeline capability: mobility transfer, cross-defense matrix, and LODO](#step-35) — 2026-07-29
+36. [Cross-defense intersection: detecting an unseen defense; the Step-35 prediction overturned](#step-36) — 2026-08-04
 
 **Part VI — Synthesis**
 
-36. [Open questions](#open-questions)
-37. [Planned full-scale campaign](#full-campaign)
+37. [Open questions](#open-questions)
+38. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-38. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-39. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-40. [`scratch/` — feature schema and simulations](#guide-scratch)
-41. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-42. [Repository-root batch scripts](#guide-scripts)
-43. [Reproducing the dataset — the exact commands](#guide-repro)
+39. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+40. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+41. [`scratch/` — feature schema and simulations](#guide-scratch)
+42. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+43. [Repository-root batch scripts](#guide-scripts)
+44. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-44. [References](#references)
-45. [File index](#file-index)
+45. [References](#references)
+46. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -3064,6 +3067,215 @@ before?"* — and only the first exists in v4 today.
 - Feature set under test: {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_apriori_lenient.txt", "features_apriori_lenient.txt")}
 """)
 
+md(f"""
+<a id="step-36" name="step-36"></a>
+## Step 36 — Cross-defense intersection: detecting an unseen defense, and the Step-35 prediction overturned
+**Date:** 2026-08-04
+
+### Motivation — turning the instrument on the question, with a stricter selection protocol
+[Step 35](#step-35) built the Leave-One-Defense-Out **instrument** and, before reading any
+table, pre-registered a [HYPOTHESIS]: a defense whose mechanism was never in training would
+sit near chance (TRUST and WATCHDOG ≈ 0.50), because the surviving features are
+mechanism-specific. This step runs the experiment in earnest — with a **different, stricter
+feature-selection protocol supplied by the supervisor** — and that prediction does not
+survive.
+
+The work has its own self-contained script tree, `{S34}/`, kept apart from the v4 pipeline
+so that a change to v4 cannot silently alter it.
+
+### The selection protocol (the methodological core)
+Model-based importance is replaced by a **per-defense univariate ranking, aggregated by the
+worst case** — the supervisor's protocol:
+
+1. a univariate separation score (**mutual information**) for each feature, computed
+   **per development defense** (not on a pooled set, which the strongest defense would dominate);
+2. turned into a rank matrix (feature × defense);
+3. aggregated by the **worst rank**, R(f) = max over the development defenses — so a feature
+   survives only if it ranks well for *every* development defense. This is exactly the
+   **intersection of the per-defense top-k lists**: a feature is in the intersection at cut k
+   iff its worst rank ≤ k;
+4. the cut **k is chosen by a nested LODO** inside the three development defenses (the k with
+   the best mean inner-AUROC), not fixed by hand.
+
+Everything runs inside the outer LODO: a run-level 60/20/20 split stratified by defense; the
+held-out defense removed from Train **and** Val and evaluated only on its Test runs; the
+scaler and the ranking fitted on development defenses at every layer. Two classifiers are
+run — **Logistic Regression** (the conservative a-priori choice) and **Random Forest** (a
+non-linear sensitivity model).
+
+### The instrument
+| File | Role |
+|---|---|
+| {refml(S34 + "/step34_lodo.py", "step34_lodo.py")} | Orchestrator: outer LODO, nested-LODO k, worst-rank top-k, final model, evaluation, attack-split, stability; `--permute-labels` null test |
+| {refml(S34 + "/step34_common.py", "step34_common.py")} | Self-contained loaders, run-level split, MI rank matrix, worst-rank selection, metrics — **does not import v4** |
+| {refml(S34 + "/summarize_step34.py", "summarize_step34.py")} | The 8-row table (regime × held-out) + static↔mobile core overlap |
+| {refml(S34 + "/dominance_check.py", "dominance_check.py")} | Reproduces each fold's final model and reads its importances — the "who is dominant" audit |
+| {refml(S34 + "/run_step34_on_27.sh", "run_step34_on_27.sh")} | One-shot runner for the 27-feature experiment (both models) |
+
+### The metrics, and why each is present
+- **ROC-AUC** — primary, threshold-independent: the probability a defense-on window outscores
+  a defense-off one (1.0 = perfect separation, 0.5 = chance). It hides operating-point
+  collapse, so it never travels alone — see [Step 30](#step-30).
+- **TPR@FPR=5%** and **FPR@TPR=95%** — two a-priori operating points (a conservative and an
+  aggressive attacker).
+- **Attack-split** — paired AUROC with vs without an attacker present. The **no-attack** side
+  isolates detection of the defense's *mere presence* (no attacker to react to).
+- **Permutation null** — shuffle the label within each run and re-run; a pipeline free of
+  structural leakage must collapse to ≈ 0.50.
+
+### The two feature sets under test
+Each is the survivor of an earlier leakage decision.
+
+**Set A — 99 features** ({refml(S34 + "/features/features_99_surviving.txt", "features_99_surviving.txt")}):
+the survivors of a **message-structure** filter over the 128-feature schema (features whose
+value is fixed by byte size, message content/format, or single-message composition were
+pruned; behavioural, timing, routing-dynamics and topology features were kept).
+
+**Set B — 27 features** ({refml(S34 + "/features/features_27_step32.txt", "features_27_step32.txt")}):
+the [Step 33](#step-33) set — the canonical 32 minus the five leak / normalisation-denominator
+carriers below. It is the focus of this step.
+
+*The five removed to form the 27:*
+| Removed from the 32 | Why |
+|---|---|
+| `AvgTxPacketSize`, `FlowCount`, `RoutingOverheadRatio` | the drop3 leak carriers (univariate AUC ≥ 0.90) — [Step 29](#step-29) |
+| `AverageMprCount`, `NormalizedRoutingLoad` | the DCFM normalisation-denominator cluster — [Step 32](#step-32), [Step 33](#step-33) |
+
+*The 27 in full, by family:*
+| Family | Features |
+|---|---|
+| OLSR control-plane | `TcMessageRate`, `MidMessageRate`, `HnaMessageRate`, `AverageAdvertisedLinksPerTCMessage` |
+| Delivery / loss | `PacketDeliveryRatio`, `PacketLossRatio`, `AvgFlowLossRate`, `FlowLossRateStd`, `RxTxPacketRatio` |
+| Delay / jitter / latency | `AverageEndToEndDelay`, `AverageJitter`, `AvgFlowDelay`, `AvgFlowJitter`, `FlowDelayStd`, `FlowJitterStd` |
+| Throughput / rate | `Throughput`, `DataPacketRate`, `AvgFlowThroughput`, `FlowThroughputStd` |
+| Flow structure / size | `AverageHopCount`, `AvgFlowDuration`, `FlowDurationStd`, `AvgTxBytesPerFlow`, `AvgRxBytesPerFlow`, `AvgTxPacketsPerFlow`, `AvgRxPacketsPerFlow`, `AvgRxPacketSize` |
+
+> `DataPacketRate` is stored as `MacDataPacketRate` in the extended-schema datasets; the
+> runner detects which name is present and substitutes automatically.
+
+### Results — Set A (99 features): AUROC on the held-out defense
+| Regime · held-out | LogReg | RF | RF − 7 suspects |
+|---|---|---|---|
+| static · fpnt | 0.977 | 0.999 | 0.999 |
+| static · trust | 0.699 | 0.938 | 0.954 |
+| static · dcfm | **0.269** | 0.995 | 0.995 |
+| static · watchdog | 0.944 | 1.000 | 0.999 |
+| mobile · fpnt | 0.769 | 0.999 | 0.999 |
+| mobile · trust | 0.661 | 0.982 | 0.982 |
+| mobile · dcfm | 0.911 | 1.000 | 1.000 |
+| mobile · watchdog | 0.726 | 0.999 | 0.999 |
+
+Two findings already visible here. **(1)** Under LogReg, DCFM-static *inverts* to 0.27 (below
+chance); under RF it is 0.995 — the signal is present but **non-linear**. **(2)** Removing the
+seven normalisation-denominator suspects (`FlowCount`, `NormalizedRoutingLoad`,
+`RoutingOverheadRatio`, `EphemeralAddressFraction`, `FracDegreeOneNodes`,
+`ConnectedComponentsPerNode`, `AverageMprCount`) changes nothing (DCFM-static 0.9946 → 0.9946):
+the result does **not** rest on them. A Spearman check on the rank matrix explained the
+LogReg inversion: fpnt↔trust ranks correlate at **0.72**, but DCFM↔anything is **≈ 0.00** —
+each defense ranks a *different* feature family (routing-churn, latency, graph-topology), so a
+single linear boundary cannot fit all of them at once.
+
+### Results — Set B (27 features): AUROC on the held-out defense
+| Regime · held-out | LogReg | RF |
+|---|---|---|
+| static · fpnt | 0.811 | 0.995 |
+| static · trust | 0.675 | 0.981 |
+| static · dcfm | 0.670 | 0.984 |
+| static · watchdog | 0.877 | 1.000 |
+| mobile · fpnt | 0.705 | 0.998 |
+| mobile · trust | 0.582 | 0.982 |
+| mobile · dcfm | 0.717 | 0.999 |
+| mobile · watchdog | 0.654 | 0.998 |
+
+**How many features the intersection kept (k), per condition:**
+| Regime · held-out | LogReg | RF |
+|---|---|---|
+| static · fpnt | 27 | 27 |
+| static · trust | 27 | 15 |
+| static · dcfm | 27 | 27 |
+| static · watchdog | 27 | 27 |
+| mobile · fpnt | 20 | 20 |
+| mobile · trust | 20 | 20 |
+| mobile · dcfm | 20 | 20 |
+| mobile · watchdog | 20 | 15 |
+
+A point worth stating plainly: in several folds the intersection kept **all 27 features** — no
+filtering at all — and RF still reached ≈ 1.0. So the strong result is not an artefact of a
+lucky small subset.
+
+### Dominance — is one feature carrying it? (the supervisor's question)
+**No.** Reproducing each fold's RF and reading its importances
+({refml(S34 + "/dominance_check.py", "dominance_check.py")}):
+
+| Set / regime | top-1 share | #features for 80% | leakage-suspect in top-12? |
+|---|---|---|---|
+| 27 / static | 13–15 % | 8–10 | none |
+| 27 / mobile | 9–14 % | 10–12 | none |
+| 99 / static | 6–12 % | 19–43 | none |
+| 99 / mobile | 3–6 % | 55–60 | (two, at low weight) |
+
+The importance is **diffuse**, and the leaders are **generic and behavioural**, recurring in
+the top-5 of all four folds:
+
+| Regime (27-set) | Generic leaders (top-5 in 4/4 folds) |
+|---|---|
+| static | `AvgFlowDelay` (0.13), `AvgFlowJitter` (0.13), `AverageJitter` (0.12), `AverageEndToEndDelay` (0.12) |
+| mobile | `AverageAdvertisedLinksPerTCMessage` (0.12), `AverageHopCount` (0.10), `AverageEndToEndDelay` (0.08) |
+
+The signature also **re-shapes** between regimes (delay/jitter in static; control-plane and
+hop-count in mobile) — consistent with a genuine physical signature that manifests
+differently under mobility, not a fixed leaking column.
+
+### The permutation null — [VERIFIED]
+Shuffling `defense_enabled` within each run and re-running (`--permute-labels`) collapsed
+**all eight** conditions to ≈ 0.50 (range 0.486–0.535), attack-split included. Had any
+structural shortcut remained — a leaking column, a per-defense source fingerprint — it would
+have kept some fold above chance under a shuffled label. None did. The real 0.98–1.00
+therefore comes only from the true feature→defense relationship.
+
+### What we concluded
+1. **A generic, cross-defense "a defense is running" signature exists and generalises to an
+   unseen defense** — with RF, every condition reaches 0.94–1.00, held-out defense included.
+   This **overturns the [Step 35](#step-35) [HYPOTHESIS]** that TRUST/WATCHDOG would sit at
+   chance.
+2. **The signature is non-linear.** LogReg is weak and uneven (0.58–0.88); RF is strong. The
+   same lesson recorded for mobility in [Step 29](#step-29) — a linear model is the wrong
+   instrument for this signal, not evidence of its absence.
+3. **It is not leakage.** It survives dropping the seven denominator suspects; no single
+   feature dominates; no suspect ranks in the top-12; and the permutation null is ≈ 0.50.
+4. **LODO beats in-condition.** TRUST-mobile scored ≈ 0.70 when trained on TRUST alone
+   ([Step 29](#step-29) baseline) but ≈ 0.98 when trained on the other three and tested on
+   TRUST. Pooling three defenses learns the shared fingerprint better than one weak defense in
+   isolation — the inversion is the finding, not a bug.
+5. **What is detected is *presence*, not efficacy.** The no-attack side of the attack-split is
+   the more separable one — the model sees the mechanism *running and perturbing the traffic*,
+   not "the attacker was defeated." This is the honest scope of the claim.
+
+### Status and the standing caveat
+[VERIFIED]: all runs completed; the permutation null is ≈ 0.50; the 7-suspect removal leaves
+every cell unchanged. Caveat [HYPOTHESIS]: DCFM shares the pipeline and simulator with the
+others (confirmed with the owner), which weakens — but does not fully close — the possibility
+that a share of its near-perfect scores reflects distribution shift rather than defence
+signature; the cross-generalisation among FPNT/TRUST/WATCHDOG stands independently of it. See
+[Open Questions](#open-questions).
+
+### Sources
+- Instrument: {refml(S34 + "/step34_lodo.py", "step34_lodo.py")},
+  {refml(S34 + "/step34_common.py", "step34_common.py")},
+  {refml(S34 + "/summarize_step34.py", "summarize_step34.py")},
+  {refml(S34 + "/dominance_check.py", "dominance_check.py")},
+  {refml(S34 + "/run_step34_on_27.sh", "run_step34_on_27.sh")}
+- Feature sets: {refml(S34 + "/features/features_99_surviving.txt", "features_99_surviving.txt")},
+  {refml(S34 + "/features/features_27_step32.txt", "features_27_step32.txt")}
+- Configs: {refml(S34 + "/step34_config.json", "step34_config.json")} (+ `step34_config_27.json`,
+  `step34_config_27_rf.json`, generated by the runner)
+- Outputs (each with `summary/step34_results.csv`): `{S34}/results_rf/` (99·RF),
+  `results_rf_noleak/` (99·RF−7), `results_27/` (27·LogReg), `results_27_rf/` (27·RF),
+  `results_27_rf_PERMUTED/` (permutation null)
+- Antecedents: [Step 35](#step-35) (the LODO instrument and its pre-registered predictions);
+  [Step 33](#step-33) (origin of the 27-set)
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -3704,7 +3916,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 |---|---|
 | {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them |
 
-*Key scripts in `scripts_for_all_128/` (runs 1–3 and Step 34)*
+*Key scripts in `scripts_for_all_128/` (runs 1–3, Step 34, and the Step-36 cross-defense tree)*
 
 | File | Role |
 |---|---|
@@ -3726,6 +3938,12 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")} | Train-one-mobility-regime / test-the-other transfer test (full-set and per-feature) |
 | {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/compare_apriori.py", "compare_apriori.py")} | 21 vs 59 vs 26 comparison (AUC / MCC / TPR@1%FPR) |
 | {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_apriori_lenient.txt", "features_apriori_lenient.txt")} | The final 21 defense-independent, observable, implementation-general features |
+| {refml(S34 + "/step34_lodo.py", "step34_lodo.py")} | **Step 36** cross-defense LODO orchestrator: outer LODO + nested-k + worst-rank top-k intersection; `--permute-labels` null |
+| {refml(S34 + "/step34_common.py", "step34_common.py")} | Self-contained loaders, run-level split, MI rank matrix, worst-rank selection, metrics (no v4 import) |
+| {refml(S34 + "/summarize_step34.py", "summarize_step34.py")} | 8-row results table + static↔mobile core overlap |
+| {refml(S34 + "/dominance_check.py", "dominance_check.py")} | Per-fold feature-importance / dominance audit |
+| {refml(S34 + "/run_step34_on_27.sh", "run_step34_on_27.sh")} | One-shot runner for the 27-feature experiment (LogReg + RF) |
+| {refml(S34 + "/features/features_99_surviving.txt", "features_99_surviving.txt")}, {refml(S34 + "/features/features_27_step32.txt", "features_27_step32.txt")} | The 99 (structure-filter survivors) and the 27 (Step-33 set) under test |
 
 *Result files (git-tracked outputs of the three runs)*
 
@@ -3735,6 +3953,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `scripts_for_all_128/step29_exp2_ablation_26/results_run2_behavioral/` | `comparison_32_vs_29_vs_26.csv`, `three_metrics.csv`, `core95_scan.csv`, and `drop3/` + `drop6/` (each with the same 8 condition dirs) |
 | `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/` | `compare_26_vs_76.csv`, and 8 condition dirs (same per-condition file set as run 1) |
 | `scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/results_run9_apriori21/` | `apriori_comparison.csv`, the three per-metric pivots, 8 condition dirs (same per-condition file set as run 1), and `transfer_test/` (`full_set_transfer.csv`, `per_feature_transfer.csv`) |
+| `{S34}/` (**Step 36** cross-defense LODO) | Per regime (`static/`, `mobile/`) a `heldout_<defense>/` dir with `rank_matrix.csv`, `nested_k_selection.csv`, `selected_features.txt`, `metrics.json`, `roc_curve.csv`, plus `stability.json` and `summary/step34_results.csv`. Five run trees: `results_rf/` (99·RF), `results_rf_noleak/` (99·RF−7 suspects), `results_27/` (27·LogReg), `results_27_rf/` (27·RF), `results_27_rf_PERMUTED/` (permutation null) |
 | `{DML}/results/30_schema33/paper_v4/transfer/` | **[Step 35](#step-35) generalisation experiments** (written under the v4 default results root, not under `scripts_for_all_128/`): `transfer_mobility.csv`, `transfer_defense_<mobility>.csv`, `lodo_<mobility>.csv`, `transfer_config.json` (reproduction manifest), and `figures/` (`transfer_mobility_<defense>.png`, `transfer_defense_<mobility>.png`, `lodo_<mobility>.png`) |
 
 ### Reproduction environment
