@@ -21,6 +21,7 @@ REPO_ML = "https://github.com/hananelk26/ML-for-NS3/blob/main"
 DML = "defense_ml/defense_ml_project"
 # Campaign-2 Step-34 folder (cross-defense LODO experiment).
 S34 = "scripts_for_all_128/Step_34_Cross_Defense_Intersection"
+S35 = "scripts_for_all_128/step_35_dcfm_non_normalized"
 OUT = Path(__file__).parent / "Defense_Detection_Project_Report.ipynb"
 
 # --------------------------------------------------------------------------
@@ -270,6 +271,7 @@ md("""
 34. [Defense-independent features: normalisation leak, transfer, and the final 21-feature set](#step-34) — 2026-07-27
 35. [Generalisation as a pipeline capability: mobility transfer, cross-defense matrix, and LODO](#step-35) — 2026-07-29
 36. [Cross-defense intersection: detecting an unseen defense; the Step-35 prediction overturned](#step-36) — 2026-08-04
+37. [The normalisation hypothesis measured: DCFM re-run on un-normalised features](#step-37) — 2026-08-05
 
 **Part VI — Synthesis**
 
@@ -2480,13 +2482,19 @@ The normalisation table (`OLSR_Feature_Normalization_Table.docx`) documents, for
 
 > *"In your simulations this is always 512 because it is a configuration constant
 > (UDP_PACKET_SIZE)."*
+
+> **Correction ([Step 37](#step-37)).** The table says 512; the value actually emitted on the
+> wire is **540** — 512 B of UDP payload plus 28 B of UDP/IP headers. Measured on the
+> un-normalised dataset: mean 540.0, std 0.0, `nunique = 1` across all 8012 static windows.
+> The argument below is unaffected — the numerator is constant either way — but the constant
+> is 540.
 > *"Normalisation: divided by the mean size of all packets observed in the window
 > (**including control messages**)."*
 
 Therefore:
 
 ```
-AvgTxPacketSize_normalised = 512 / mean_size_of_all_packets_including_control
+AvgTxPacketSize_normalised = 540 / mean_size_of_all_packets_including_control
                              ^^^                    ^^^^^^^^^^^^^^^^^^^^^^^^
                           constant                the only varying term
 ```
@@ -2604,6 +2612,14 @@ explicit.
 | 27 | + only NRL left | 0.9636 | 0.9742 |
 | 27 | + only Mpr left | 0.9657 | 0.9655 |
 | 27 | + only Adv left | **0.8703** | **0.9364** |
+
+> **Footnote added by [Step 37](#step-37).** The 27-set is nominally 27 columns but
+> **effectively 23**. Three of them carry one quantity — the emitter writes `L_pdr` to both
+> `PacketDeliveryRatio` and `RxTxPacketRatio`, and `1 - L_pdr` to `PacketLossRatio` — and
+> `MidMessageRate` and `HnaMessageRate` are exactly zero in all 16 028 windows of both the
+> normalised and un-normalised datasets. `FeatureSelector`'s zero-variance filter and its
+> |r| > 0.95 correlation pruning remove all five in-fold, so no result here is invalidated;
+> the count is simply larger than the effective dimensionality. [VERIFIED]
 | 26 | drop6 (none left) | ~0.86 | ~0.88 |
 
 ### Findings
@@ -3132,6 +3148,8 @@ value is fixed by byte size, message content/format, or single-message compositi
 pruned; behavioural, timing, routing-dynamics and topology features were kept).
 
 **Set B — 27 features** ({refml(S34 + "/features/features_27_step32.txt", "features_27_step32.txt")}):
+*(nominally 27; effectively 23 — see the footnote at [Step 33](#step-33) and
+[Step 37](#step-37).)*
 the [Step 33](#step-33) set — the canonical 32 minus the five leak / normalisation-denominator
 carriers below. It is the focus of this step.
 
@@ -3276,6 +3294,265 @@ signature; the cross-generalisation among FPNT/TRUST/WATCHDOG stands independent
   [Step 33](#step-33) (origin of the 27-set)
 """)
 
+md(f"""
+<a id="step-37" name="step-37"></a>
+## Step 37 — The normalisation hypothesis measured: DCFM re-run on un-normalised features
+**Date:** 2026-08-05
+
+### Motivation — the one test that had only ever been argued, never measured
+[Step 32](#step-32) proposed that DCFM's apparent detectability was an artefact of the
+**denominators** used to normalise the feature schema rather than of the defense's behaviour,
+and it named the experiment that would settle it: measure whether the denominator itself
+predicts the label. [Step 34](#step-34) confirmed the mechanism **from source** — reading the
+emitter and identifying `nObs`, `graphN` and the all-packet size mean as the contaminated
+divisors — and marked the finding `[VERIFIED from source]`. What never existed was the
+counterfactual: the same simulations, emitted **without** normalisation.
+
+It exists now. On 2026-08-04 the DCFM dataset was regenerated with an un-normalised emitter
+under the same `runner.config` — identical `START_SEED=1`, identical `EXTRA_ARGS`, same ns-3
+tree, same scratch program; only `OUT_DIR` and `DATE_STARTED` differ. This step runs the two
+feature sets whose normalised results are already published — the 27-set of
+[Step 33](#step-33) and the 32-set of [Step 29](#step-29) — on the raw data, changing nothing
+else.
+
+### The two schema headers, diffed
+`olsr_window_features.h` (raw) and its schema-v5 normalised counterpart (the `NORM-001`
+block) were compared column by column. Of the 95 Core columns **77 are renamed** and 18 keep
+their names — and those 18 are exactly the ones that were already scale-free by construction
+(`PerNodeTcBytesGini`, `TcBurstinessHurst`, `AdvertisedGraphDensity`, the Skew/Kurtosis and
+`TcInterArrival*` families). The 33-column V2 group keeps **every** name and changes only
+values; the header says so explicitly and warns never to mix pre- and post-v5 rows.
+
+**This is why only this experiment is clean.** `--feature-set all` is not comparable across
+the two datasets, because 77 of its columns changed identity. The 32-metric block is
+comparable, because its names are stable. [VERIFIED from source]
+
+Two mechanisms fall straight out of the emission code:
+
+- `FlowCount_normalised = m_dataSentByFlow.size() / nObs`. The raw numerator takes **three
+  values** (mean 2.995 of a maximum 3 — almost always exactly 3), so the normalised feature is
+  very nearly **3 / nObs**: a direct readout of the observed address count. Arithmetic check:
+  3/54 = 0.0556 against a measured normalised mean of 0.0554. `FlowCount` carried **94.8% of
+  the importance in DCFM/static** in [Step 29](#step-29). [VERIFIED from source]
+- **Eight of the 27** still divide by a defense-sensitive observed quantity: `TcMessageRate`,
+  `MidMessageRate` and `HnaMessageRate` by `nObs`; `AverageAdvertisedLinksPerTCMessage` by
+  `nObs-1`; `AverageEndToEndDelay` and `AvgFlowDelay` by the observed mean hop count;
+  `AverageHopCount` by the observed diameter; `DataPacketRate` by the observed flow count.
+  Dropping `AverageMprCount` and `NormalizedRoutingLoad` in [Step 33](#step-33) removed two
+  carriers and left these — which is why the 27-set sat at 0.87 rather than at chance.
+  [VERIFIED from source]
+
+### Validity gate — four checks, all run before any learning
+A pre-flight script established that the comparison isolates normalisation:
+
+| Check | Result |
+|---|---|
+| **Control group** — four of the 27 divide by the window duration, a genuine constant, so their univariate AUC *cannot* change | max abs delta = **0.0000**, both regimes |
+| **Pairing** — do the two datasets hold the same simulations? | `run_id` overlap **2003 / 2004** static, **2004 / 2004** mobile |
+| **Baseline provenance** — do the located baselines reproduce the published numbers? | `baseline_drift = 0.0` on all four |
+| **Pipeline parity** — seed, folds, repeats, composites, transforms | every knob matches |
+
+The control group is the strongest of the four: it is a built-in falsification test. Had those
+four features moved at all, every other delta would have been confounded by re-simulation.
+They did not move. This is precisely the assurance that [Step 36](#step-36)'s standing
+provenance caveat could not provide for its own comparison. [VERIFIED]
+
+### Result 1 — the denominator alone identifies the defense
+Because the datasets are paired, the per-window ratio raw ÷ normalised **recovers the
+denominator exactly**. Two independent routes:
+
+| Route | static | mobile |
+|---|---|---|
+| Direct: the raw `NumDistinctAddressesInTcAdvertisements` counter | **0.9469** | **0.9863** |
+| Recovered: per-window raw ÷ normalised ratio | 0.9468 | 0.9871 |
+
+They agree to three decimals. The recovered denominator is **53.8** (static) and **57.8**
+(mobile) — **not 50**. That excess of roughly four to eight addresses is the `main+65536`
+injection, measured rather than inferred.
+
+**`AUC(denominator, defense_enabled)` ≈ 0.95–0.99, with no model at all.** This answers
+question 1 of [Step 32](#step-32). Any feature divided by this quantity inherits an almost
+complete defense signal regardless of what its numerator measures. [VERIFIED]
+
+### Result 2 — `FlowCount`, the project's largest single leak, dissolved
+Univariate AUC of the individual carriers, raw versus normalised (static / mobile):
+
+| Feature | raw | normalised |
+|---|---|---|
+| `FlowCount` | **0.501 / 0.517** | 0.942 / 0.954 |
+| `AvgTxPacketSize` | constant 540.0, `nunique=1` / 0.500 | 0.663 / 0.616 |
+
+`FlowCount` raw is **at chance**. It contains no behavioural information whatever. Normalised,
+it reaches 0.942 — and that figure is almost exactly the denominator's own 0.947, because the
+normalised feature *is* the denominator. The classifier that assigned it 94.8% of its
+importance in [Step 29](#step-29) was counting DCFM's fictitious addresses. [VERIFIED]
+
+### Result 3 — normalisation also destroyed real signal
+This direction was not anticipated:
+
+| Feature | regime | raw | normalised |
+|---|---|---|---|
+| `TcMessageRate` | mobile | **0.910** | 0.720 |
+| `TcMessageRate` | static | **0.812** | 0.680 |
+| `AverageAdvertisedLinksPerTCMessage` | static | **0.777** | 0.520 |
+| `AverageHopCount` | mobile | **0.763** | 0.699 |
+| `AverageEndToEndDelay` | mobile | **0.593** | 0.501 |
+
+DCFM floods TC because it injects nodes — a real behavioural signature. But `nObs` rises for
+exactly the same reason, so dividing one by the other **cancels the signal**. Normalisation
+was harmful in both directions at once: it promoted content-free features into detectors *and*
+suppressed the features that carry the mechanism. [VERIFIED]
+
+### Result 4 — the two sets move in opposite directions, and that is the point
+**`HistGB` fixed on both sides**, so the model is not a second variable. Every pipeline knob
+pinned to the published baseline (seed 42, 2×5 grouped CV, composites on, transforms on, no
+`--n-features` cap):
+
+| set | regime | normalised | raw | delta AUC | TPR@1%FPR |
+|---|---|---|---|---|---|
+| **27** | static | 0.8660 | **0.9415** | **+0.076** | 0.258 → **0.691** |
+| **27** | mobile | 0.9341 | **0.9711** | **+0.037** | 0.514 → **0.789** |
+| **32** | static | 0.9864 | 0.9591 | −0.027 | 0.921 → 0.750 |
+| **32** | mobile | 0.9983 | 0.9760 | −0.022 | 0.984 → 0.814 |
+
+The opposite signs are structural, not contradictory: **the 32-set contains the leak and the
+27-set does not.** Stripping the representation costs the 32-set the leak it was partly running
+on, while the 27-set has no leak to lose and instead recovers the behavioural signal that
+division by `nObs` had been cancelling. Each set experiences only one of the two effects.
+
+Note the operating point on the 27-set: at 1% false-alarm rate, detection goes from **a quarter
+of windows to two thirds** — a change far larger than the 0.076 of AUC suggests. This is
+[Step 29](#step-29)'s central lesson running in reverse: the ranking metric masks, the
+operating point exposes.
+
+### Result 5 — the ablation ladder was largely measuring normalisation
+
+| | 27 | 32 | gap |
+|---|---|---|---|
+| normalised | 0.866 | 0.986 | **0.120** |
+| raw | 0.942 | 0.959 | **0.018** |
+
+In the normalised representation the five removed features appear to carry 0.12 of AUC. Raw,
+they carry 0.018 — a seventh as much. **The single-feature and pair ablations of
+[Step 30](#step-30) through [Step 33](#step-33) were, to a large extent, mapping the
+normalisation scheme rather than a hierarchy of behavioural features.** This does not
+invalidate that work; it explains why it felt like whack-a-mole, exactly as
+[Step 34](#step-34) argued — now with a measurement instead of an inference. [VERIFIED]
+
+### Result 6 — what the model learns instead
+`TDR` — the composite `TcMessageRate × AverageAdvertisedLinksPerTCMessage`, the rate of
+topology dissemination — is the **top-ranked feature in all four raw runs**. The full leading
+groups:
+
+| run | top features |
+|---|---|
+| 27 · static | `TDR`, `AverageAdvertisedLinksPerTCMessage`, `Delay_Per_Hop` |
+| 27 · mobile | `TDR`, `AverageAdvertisedLinksPerTCMessage`, `DataPacketRate` |
+| 32 · static | `TDR`, `AverageMprCount`, `AverageAdvertisedLinksPerTCMessage` |
+| 32 · mobile | `TDR`, `AverageAdvertisedLinksPerTCMessage`, `AverageMprCount` |
+
+That is DCFM's mechanism read directly: fictitious-node injection floods the control plane
+with TC traffic. The model now measures the flooding rather than counting addresses through a
+denominator — which corroborates, in a clean representation, what [Step 22](#step-22) claimed
+for Campaign 1. Importance is also less concentrated than in [Step 29](#step-29): `TDR` takes
+0.176 on 27·static against `FlowCount`'s 94.8% there, with the remainder spread thinly
+(`AverageMprCount` 0.049, `AverageAdvertisedLinksPerTCMessage` 0.044).
+
+### Controls
+- **Permutation null.** 100 grouped permutations on 27·static, labels shuffled within each run
+  so the 2-ON/2-OFF balance is preserved: observed **0.9466**, null **0.4989 ± 0.0072**,
+  p = 0.0099 (the floor for 100 permutations). The observed value sits 62 null standard
+  deviations away. Because this step *reverses* a pre-registered expectation, the null matters
+  more than usual: the pipeline finds nothing once the labels are destroyed. It also matches
+  [Step 36](#step-36)'s null band (0.486–0.535). [VERIFIED]
+- **Anchor stability.** The comparison was repeated with **nine** fixed models (HistGB,
+  LightGBM, XGBoost, CatBoost, RandomForest, ExtraTrees, Ridge, Stacking, AdaBoost) — 36
+  comparisons. **The sign agrees in 36 of 36**: +0.075…+0.101 and +0.036…+0.042 for the 27-set,
+  −0.021…−0.043 and −0.021…−0.036 for the 32-set, and likewise for all 36 TPR@1% deltas. The
+  conclusion does not depend on the choice of anchor. [VERIFIED]
+- **Linearity.** `Ridge` shows the **largest gain anywhere in the anchor table** (+0.1009 on
+  27·static, 0.8140 → 0.9148). A *linear* model improves most, so normalisation had also made
+  the problem less linearly separable — dividing by a quantity that moves with the label bends
+  a boundary that was close to flat. Conversely `ExtraTrees` and `RandomForest` lose most on
+  the 32-set (−0.043, −0.038) against `LightGBM`'s −0.021: the non-boosted forests leaned
+  hardest on the single dominant leak feature and suffer most when it evaporates.
+  [HYPOTHESIS — consistent with the importance tables, not tested directly]
+- **Non-linearity, again.** `SVM_rbf` reaches only 0.5567 and `LogisticRegression`
+  0.8065 ± 0.131 on 27·static, against 0.9415 for `HistGB`. [Step 29](#step-29)'s finding
+  holds in the raw representation too.
+
+### Three schema findings recorded along the way
+1. **`AvgTxPacketSize` is 540, not 512** — 512 B of UDP payload plus 28 B of UDP/IP headers.
+   The normalisation table quotes 512. Corrected at [Step 32](#step-32).
+2. **`NormalizedRoutingLoad` was never normalised**, despite its name. It is byte-identical in
+   both datasets (177.5476 vs 177.5827 static; 315.7069 vs 315.7069 mobile), as is
+   `RoutingOverheadRatio` (scale-free by construction). Its signal is therefore behavioural
+   (univariate AUC 0.728 static / 0.813 mobile). **Only two of the five features removed to
+   build the 27-set were normalisation artefacts** — the other three may have carried real
+   signal that was discarded. Recorded in *Open Questions*.
+3. **A schema collision in both headers.** The emitter writes `L_pdr` to both
+   `PacketDeliveryRatio` and `RxTxPacketRatio`, and `1 - L_pdr` to `PacketLossRatio` — three
+   columns, one quantity. Separately, `MidMessageRate` and `HnaMessageRate` are exactly zero in
+   all 16 028 windows of both datasets. `FeatureSelector` removes all five in-fold, so nothing
+   is invalidated, but **the 27-set is effectively 23 features**. Footnoted at
+   [Step 33](#step-33) and [Step 36](#step-36).
+
+### Conclusion
+DCFM is genuinely detectable, but the published figures were measured through the wrong lens.
+Normalising by an observed quantity that the defense itself perturbs is **doubly harmful**: it
+promotes content-free features into detectors, and it cancels the signal in features that do
+carry the mechanism. In the raw representation DCFM is detected at **0.94–0.98 on the basis of
+control-plane flooding**, and **27 leak-free behavioural features suffice** — the clean set
+sought since [Step 30](#step-30) was present all along, hidden by the representation.
+
+The generalisable caution, well beyond OLSR: **before normalising a feature, ask whether its
+denominator is influenced by the phenomenon being detected.** A denominator that is is not a
+scaling choice but a label leak.
+
+### What this does not establish
+This is **DCFM only**. No un-normalised dataset exists for FPNT, TRUST or WATCHDOG, so no
+general claim about normalisation is licensed yet. FPNT is the informative next case, because
+its contaminated divisor is the mean all-packet size rather than `nObs`. And the result says
+nothing about [Step 36](#step-36)'s cross-defense generalisation, which ran entirely on
+normalised data — whether a *generic* defense signature survives de-normalisation is now the
+sharpest open question in the project. Both are carried into *Open Questions*.
+
+### Sources
+- Schema headers (NS-3): {ref("scratch/olsr_window_features.h")} (raw) and its schema-v5
+  `NORM-001` counterpart
+- Pipeline: {refml("defense_detection_v4.py")} — **unmodified**; this step adds no v4 change
+- Pre-flight and denominator diagnostics:
+  {refml(S35 + "/preflight.py", "preflight.py")}
+- Runner (activates the `defense` conda env itself, and aborts if LightGBM / XGBoost /
+  CatBoost are missing, so a 9-model zoo can never be compared against a 12-model baseline):
+  {refml(S35 + "/run_dcfm_nonorm.sh", "run_dcfm_nonorm.sh")}
+- Comparison (best-model and fixed-anchor tables, plus a config-parity check):
+  {refml(S35 + "/compare_normalized_vs_raw.py", "compare_normalized_vs_raw.py")}
+- Feature sets, in `METRICS` order so that `--features-file` reproduces the Step-33
+  `--drop-features` selection exactly — order matters, because `FeatureSelector`'s correlation
+  pruning is a deterministic greedy keep-first over column order:
+  {refml(S35 + "/features_27.txt", "features_27.txt")},
+  {refml(S35 + "/features_32.txt", "features_32.txt")}
+- Source-derived name and denominator map, all 128 columns:
+  {refml(S35 + "/feature_name_map.csv", "feature_name_map.csv")}
+- Dataset: `Dcfm_All_128_features_no_normalization/` — `static/` and `mobile/`, 2004 runs and
+  8016 windows each, generated 2026-08-04 (2.17 h and 2.76 h wall clock, yields 0.348 and 0.241)
+- Outputs: `{S35}/results_run_nonorm_27/` and `{S35}/results_run_nonorm_32/` (each with
+  `dcfm_static/` and `dcfm_mobile/`, holding `summary.csv`, `folds.csv`, `importance.csv`,
+  `run_config.json`, `summary.tex`, `permutation_test.json` for 27·static, `final_model.pkl`,
+  `figures/`); `{S35}/preflight_report/` (`scale_comparison_*.csv`,
+  `univariate_by_class_*.csv`, `denominator_direct_*.csv`, `denominator_recovered_*.csv`,
+  `pairing_*.json`); `{S35}/comparison/` (`comparison_best_model.csv`,
+  `comparison_fixed_HistGB.csv`, `config_parity.csv`)
+- Antecedents: [Step 32](#step-32) (the hypothesis and the test it specified);
+  [Step 34](#step-34) (the source-level confirmation); [Step 33](#step-33) (the 27-set and its
+  0.8703 / 0.9364 baseline); [Step 29](#step-29) (the 32-set and its 0.9874 / 0.9983 baseline)
+
+> **Folder numbering.** The script folder is `step_35_dcfm_non_normalized`, following the
+> repository's own counter, which runs two behind the notebook — the same offset that makes
+> `Step_34_Cross_Defense_Intersection` the home of notebook [Step 36](#step-36).
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -3293,7 +3570,7 @@ These cannot be resolved by analysis alone.
 |---|---|---|
 | 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. **Addressed ([Step 34](#step-34)):** FPNT's TC enlargement survives the static<->mobile transfer test (ROC-AUC 1.000 both directions), so detection via TC size is a legitimate, generalising finding — though confirmed against a *single* implementation only. |
 | 2 | **Does DCFM's mechanism inherently alter MPR structure and TC advertisement?** | Determines whether the DCFM cluster (`AverageMprCount`, `AdvertisedLinks`, `NormalizedRoutingLoad`) is a legitimate signature or an artefact. |
-| 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 32](#step-32)). |
+| 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 32](#step-32)). **[Step 37](#step-37) narrows this:** the data-artefact branch is now excluded for the normalisation channel — the two datasets are the same simulations and the inversion survives de-normalisation (0.9591 static vs 0.9760 mobile raw). The recovered `nObs` is also larger under mobility (57.8 vs 53.8), consistent with the mechanistic reading. Still open: why. |
 | 4 | **Does forcing `RtsCtsThreshold = 0` on small packets constitute a cheat for the model?** | Raised at the 2026-05-18 meeting ([Step 18](#step-18)). Two defenses force RTS/CTS; if the classifier reads that, it is reading our configuration, not the defense. **This question anticipated the whole leakage analysis and is still open.** |
 
 > **The framing that resolves Q1–Q2** is *not* whether a feature name sounds behavioural,
@@ -3314,10 +3591,12 @@ follows the logs.**
 ### C. Methodological items still outstanding
 | # | Item | Status |
 |---|---|---|
-| 9 | ~~**Test the normalisation hypothesis** ([Step 32](#step-32))~~ **RESOLVED** ([Step 34](#step-34)) | Confirmed from source: `AvgTxPacketSize` divides by mean all-packet size (FPNT padding), the MPR/advertised family divides by `nObs` (inflated by DCFM's `main+65536` injection). A leak-free, observable, implementation-general 21-feature set is now established |
+| 9 | ~~**Test the normalisation hypothesis** ([Step 32](#step-32))~~ **RESOLVED** ([Step 34](#step-34) from source; **[Step 37](#step-37) by measurement**) | Confirmed from source: `AvgTxPacketSize` divides by mean all-packet size (FPNT padding), the MPR/advertised family divides by `nObs` (inflated by DCFM's `main+65536` injection). [Step 37](#step-37) then measured it on a paired un-normalised DCFM dataset: `AUC(nObs, defense_enabled)` = **0.947 static / 0.987 mobile**, and `FlowCount` — 94.8% of DCFM/static importance — collapses to **0.501** raw. Two corrections fall out: the constant is 540 not 512, and **`NormalizedRoutingLoad` was never normalised at all** (byte-identical in both datasets), so only *two* of the five features removed to build the 27-set were normalisation artifacts |
 | 10 | **Dynamic-attacker selection is too loose** | ~70% of successful runs have an **off-path** attacker → their `attack` vectors are indistinguishable from `baseline`, injecting ~70% noise. Fix: select the attacker as the **actual next hop** in Node 1's routing table toward Node 0 ([Step 16](#step-16)) |
 | 11 | **Rule 1c residual false positives** | Options: (A) disable Rule 1c (Rule 1b alone gave 100% detection); (B) require **three** consecutive violations for 1c; (C) exclude blacklisted addresses from 1c verification. **Decision required before feature extraction** |
-| 12 | **Data provenance** | Relationship between `~/dataset_paper/` and `dataset_128_all_defenses` was never independently audited |
+| 12 | **Data provenance** | Relationship between `~/dataset_paper/` and `dataset_128_all_defenses` was never independently audited. **Partly closed by [Step 37](#step-37)** for DCFM: `runner.config` differs between the normalised and un-normalised trees only in `OUT_DIR` and `DATE_STARTED`, and the `run_id` overlap is 2003/2004 (static) and 2004/2004 (mobile) — the same simulations. Note also that v4's `DATASETS` registry loads DCFM from `~/Downloads/DCFM_33_size/…/v2only_static` while the other three come from `dataset_final/…_canonical`; that asymmetry is still unaudited |
+| 13 | **Does de-normalisation generalise beyond DCFM?** ([Step 37](#step-37)) | [Step 37](#step-37) is DCFM only. FPNT is the informative case: its contaminated divisor is the mean all-packet size, not `nObs`, and [Step 21](#step-21) showed its entire signal was TC padding. Requires regenerating the FPNT dataset un-normalised (~3 h) |
+| 14 | **Does the cross-defense signature survive de-normalisation?** ([Step 36](#step-36) × [Step 37](#step-37)) | [Step 36](#step-36) reached 0.98–1.00 on an unseen defense, but ran entirely on normalised data — and [Step 37](#step-37) shows normalisation injects a strong non-behavioural component. If LODO holds up raw, the generic "a defense is running" signature is real and proven clean; if it collapses, [Step 36](#step-36)'s result was largely shared normalisation. **This is the sharpest open question in the project.** Requires question 13 first |
 | 13 | **Seed-set breadth** | Ten seeds sufficed for calibration; the 87.78% Watchdog figure is **not statistically robust**. 50–100 seeds warranted |
 | 14 | **Training distribution is 1-hop-attacker only** | A model expected to generalise to *n*-hop attackers needs the generator to sample attacker hop-distance ([Step 16](#step-16)) |
 """)
@@ -3916,7 +4195,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 |---|---|
 | {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them |
 
-*Key scripts in `scripts_for_all_128/` (runs 1–3, Step 34, and the Step-36 cross-defense tree)*
+*Key scripts in `scripts_for_all_128/` (runs 1–3, Step 34, the Step-36 cross-defense tree, and the Step-37 un-normalised replication)*
 
 | File | Role |
 |---|---|
@@ -3938,6 +4217,12 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/transfer_test.py", "transfer_test.py")} | Train-one-mobility-regime / test-the-other transfer test (full-set and per-feature) |
 | {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/compare_apriori.py", "compare_apriori.py")} | 21 vs 59 vs 26 comparison (AUC / MCC / TPR@1%FPR) |
 | {refml("scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/features_apriori_lenient.txt", "features_apriori_lenient.txt")} | The final 21 defense-independent, observable, implementation-general features |
+| {refml(S35 + "/preflight.py", "preflight.py")} | **[Step 37](#step-37)** pre-flight: schema check, zero-variance scan, constant-divisor control group, dataset pairing, and `AUC(denominator, defense_enabled)` — the test [Step 32](#step-32) specified |
+| {refml(S35 + "/run_dcfm_nonorm.sh", "run_dcfm_nonorm.sh")} | Orchestrates the four un-normalised DCFM runs (27 and 32 features × static/mobile); activates the `defense` conda env and aborts if the boosting libraries are absent |
+| {refml(S35 + "/compare_normalized_vs_raw.py", "compare_normalized_vs_raw.py")} | Normalised-vs-raw comparison: best-model table, fixed-anchor table (**HistGB** default), and a config-parity guard |
+| {refml(S35 + "/features_27.txt", "features_27.txt")} | The 27-set in `METRICS` order, so `--features-file` reproduces the Step-33 `--drop-features` selection exactly |
+| {refml(S35 + "/features_32.txt", "features_32.txt")} | The canonical 32-metric schema, declared explicitly rather than via the preset |
+| {refml(S35 + "/feature_name_map.csv", "feature_name_map.csv")} | All 128 columns: raw name, normalised name, whether renamed, the `NORM-001` denominator, and whether that denominator is defense-sensitive |
 | {refml(S34 + "/step34_lodo.py", "step34_lodo.py")} | **Step 36** cross-defense LODO orchestrator: outer LODO + nested-k + worst-rank top-k intersection; `--permute-labels` null |
 | {refml(S34 + "/step34_common.py", "step34_common.py")} | Self-contained loaders, run-level split, MI rank matrix, worst-rank selection, metrics (no v4 import) |
 | {refml(S34 + "/summarize_step34.py", "summarize_step34.py")} | 8-row results table + static↔mobile core overlap |
@@ -3954,6 +4239,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `scripts_for_all_128/step30_exp3_expansion_76/results_run3_expanded/` | `compare_26_vs_76.csv`, and 8 condition dirs (same per-condition file set as run 1) |
 | `scripts_for_all_128/Step_33_Defense_Independent_Normalization_Features/results_run9_apriori21/` | `apriori_comparison.csv`, the three per-metric pivots, 8 condition dirs (same per-condition file set as run 1), and `transfer_test/` (`full_set_transfer.csv`, `per_feature_transfer.csv`) |
 | `{S34}/` (**Step 36** cross-defense LODO) | Per regime (`static/`, `mobile/`) a `heldout_<defense>/` dir with `rank_matrix.csv`, `nested_k_selection.csv`, `selected_features.txt`, `metrics.json`, `roc_curve.csv`, plus `stability.json` and `summary/step34_results.csv`. Five run trees: `results_rf/` (99·RF), `results_rf_noleak/` (99·RF−7 suspects), `results_27/` (27·LogReg), `results_27_rf/` (27·RF), `results_27_rf_PERMUTED/` (permutation null) |
+| `{S35}/` (**[Step 37](#step-37)** un-normalised DCFM) | `results_run_nonorm_27/` and `results_run_nonorm_32/`, each with `dcfm_static/` + `dcfm_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`scale_comparison_*.csv`, `univariate_by_class_*.csv`, `denominator_direct_*.csv`, `denominator_recovered_*.csv`, `pairing_*.json`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `config_parity.csv`) |
 | `{DML}/results/30_schema33/paper_v4/transfer/` | **[Step 35](#step-35) generalisation experiments** (written under the v4 default results root, not under `scripts_for_all_128/`): `transfer_mobility.csv`, `transfer_defense_<mobility>.csv`, `lodo_<mobility>.csv`, `transfer_config.json` (reproduction manifest), and `figures/` (`transfer_mobility_<defense>.png`, `transfer_defense_<mobility>.png`, `lodo_<mobility>.png`) |
 
 ### Reproduction environment

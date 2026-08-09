@@ -52,6 +52,12 @@ The ML side has **two pipelines** (both over one feature universe: **95 Core + 3
 
 > Because the ML repo is **private**, GitHub blob links to it return 404 for any reader.
 > That is why ML files are shown as repo-relative **paths**, not links.
+>
+> ⚠️ **The header comment in `build_notebook.py` contradicts this.** Lines 8–9 describe the ML
+> repo as *public, branch `main`* and define `REPO_ML = "https://github.com/hananelk26/ML-for-NS3/blob/main"`.
+> That constant is **dead — zero uses anywhere in the file**, and `refml()` still emits a path
+> only. The behaviour matches this table; only the comment is stale. Do not "fix" `refml()` to
+> use `REPO_ML` on the strength of that comment.
 
 ---
 
@@ -90,7 +96,7 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 35 steps)
+## 4. Notebook structure (7 parts, 37 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
@@ -100,7 +106,7 @@ Chronological. Each step is one `md(f"...")` cell.
 | **II — Defense Implementation** | 7–19 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
 | **III — ML Campaign 1 (`defense_ml`)** | 20–25 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
 | **IV — The Transition** | 26 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–35 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — the three flag-gated generalisation experiments folded into the pipeline |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–37 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -185,6 +191,24 @@ list, and the **File Index** (which links NS-3 files and lists ML files + result
 
 6. Keep the notebook **English**; keep the em-dash step-title style `## Step N — Title`.
 
+7. **Two traps when documenting or reproducing a `--features-file` run** (both found the hard
+   way in Step 37):
+
+   - **The `DataPacketRate` alias only works via the preset.** `resolve_features()` substitutes
+     `MacDataPacketRate` for `DataPacketRate` *only* on the `metrics32` branch. Pass an explicit
+     `--features` / `--features-file` list against a schema that uses the other name and the
+     feature is **dropped with a warning only** — you silently get 26 features where you asked
+     for 27, and the run still succeeds. Always diff the list against `head -1` of the CSV first.
+   - **List order changes results.** `FeatureSelector`'s correlation pruning is a deterministic
+     greedy keep-first over column order, so a re-ordered list can prune a different member of a
+     correlated pair. A feature list meant to reproduce a `--drop-features` baseline must be in
+     **`METRICS` order**, not alphabetical.
+
+   Related: the emitter writes `L_pdr` to both `PacketDeliveryRatio` and `RxTxPacketRatio`, and
+   `1 - L_pdr` to `PacketLossRatio`; `MidMessageRate` and `HnaMessageRate` are identically zero.
+   `FeatureSelector` removes all five in-fold, so a nominal 27-feature set is **effectively 23**.
+   Quote nominal counts, but footnote the effective one.
+
 ---
 
 ## 6. Validate after every rebuild
@@ -205,11 +229,27 @@ print('steps sequential 1..N:', steps == [str(i) for i in range(1, len(steps)+1)
 print('stray "{" leaks (f-string bugs):', body.count('{ref(') + body.count('{refml('))
 ```
 
-Expected: `BROKEN internal links: []`, `steps sequential 1..N: True`, `stray "{" leaks: 1`.
+Expected (as of Step 37): `cells: 58`, `BROKEN internal links: []`,
+`steps sequential 1..N: True` with `N = 37`, `stray "{" leaks: 1`.
 The single known leak is a pre-existing one — a `{ref("run_simulations.sh")}` inside a plain
 `md("...")` cell that should be `md(f"...")`. It is harmless (it renders literally) and unrelated
 to recent edits; leave it unless you are specifically fixing it. If the count rises **above 1**,
 a new f-string had an un-doubled literal brace — fix it in `build_notebook.py`.
+
+> ⚠️ **The block above cannot be pasted into a Windows `cmd.exe` one-liner as written.** Two
+> characters break it: `<` in `<a id="..."` is a redirection operator, and the `"` in `[^"]+`
+> closes the quoted argument. Replace them with their hex escapes (`\x3c`, `\x22`) and the em
+> dash with `\u2014` — the console can mangle a pasted `—`, and that failure is **silent**:
+> the step regex matches nothing, `N` comes out `0`, and `steps sequential` reports `True`
+> against an empty list. Working one-liner:
+>
+> ```cmd
+> python -c "import json,re;nb=json.load(open('Defense_Detection_Project_Report.ipynb',encoding='utf-8'));body=''.join(''.join(c['source']) for c in nb['cells']);a=set(re.findall('\x3ca id=\x22([^\x22]+)\x22',body));h=re.findall('\\]\\(#([^)]+)\\)',body);s=re.findall('## Step (\\d+) \\u2014',body);print('cells:',len(nb['cells']));print('BROKEN links:',sorted(set(x for x in h if x not in a)));print('sequential:',s==[str(i) for i in range(1,len(s)+1)],'N =',len(s));print('stray braces:',body.count('{ref(')+body.count('{refml('));print('label mismatch:',[(t,q) for t,q in re.findall('\\[Steps? (\\d+)[^\\]]*\\]\\(#step-(\\d+)\\)',body) if t!=q])"
+> ```
+>
+> Also set `PYTHONUTF8=1` before `python build_notebook.py` on Windows; the file contains em
+> dashes and other non-ASCII text, and the default console encoding can raise
+> `UnicodeEncodeError`. Running the build and the validator from WSL avoids all of this.
 
 ---
 
@@ -241,6 +281,8 @@ Each step folder holds both its scripts and its result tree, so a step is self-c
 | `step30_exp3_expansion_76/` | Step 31 | `scan_core95.py`, `build_features76.py`, `run_expanded.sh`, `compare_26_vs_76.py`, `features_clean.txt`, `results_run3_expanded/` |
 | `Step_32_Experiment_Between_26_and_29_Features/` | Step 33 | `run_drop4.sh`, `compare_drop4.py`, `step32_dcfm_summary.csv`, one `Run_*` sub-folder per single/pair ablation (each with its own `results_run4_drop4/`) |
 | `Step_33_Defense_Independent_Normalization_Features/` | Step 34 | `classify_apriori.py`, `run_apriori21.sh`, `compare_apriori.py`, `transfer_test.py`, `features_apriori_lenient.txt`, `results_run9_apriori21/` (+ `transfer_test/`) |
+| `Step_34_Cross_Defense_Intersection/` | Step 36 | `step34_lodo.py` and a `features/` dir (incl. `features_27_step32.txt`, the canonical 27-set); five result trees — `results_rf/`, `results_rf_noleak/`, `results_27/`, `results_27_rf/`, `results_27_rf_PERMUTED/` |
+| `step_35_dcfm_non_normalized/` | Step 37 | `preflight.py`, `run_dcfm_nonorm.sh`, `compare_normalized_vs_raw.py`, `features_27.txt`, `features_32.txt`, `feature_name_map.csv`, `results_run_nonorm_27/`, `results_run_nonorm_32/`, `preflight_report/`, `comparison/` |
 | `_tools/` | — | `table.py` (quick AUC/MCC/TPR table for any results dir) |
 
 Conventions for this tree:
@@ -254,9 +296,16 @@ Conventions for this tree:
   no `.pkl`/`.png` are staged before committing.
 - The Step-33 (folder `Step_32_…`) `Run_With_29_Features_Without_<X>` sub-folders are **28-feature** runs (the "29"
   is the drop3 starting point); `Run_Without_<X>_AND_<Y>` are **27-feature** runs.
-- **Step 35 breaks the per-step-folder pattern, deliberately.** Its work is a change to
-  `defense_detection_v4.py` itself (section `[9] Transfer experiments`) rather than a set of
-  step scripts, so it adds **no** folder here. Its outputs are written to the v4 default
-  results root — `defense_ml/defense_ml_project/results/30_schema33/paper_v4/transfer/` —
-  which sits in the *Campaign-1* results tree, because `paper_v4/` has always been v4's
-  default output directory. Look there, not under `scripts_for_all_128/`.
+- **Step 35 adds no folder here, and its code may not exist.** The step is written as a change
+  to `defense_detection_v4.py` itself (section `[9] Transfer experiments`, flags
+  `--transfer-mobility` / `--transfer-defense` / `--lodo`), with outputs under the v4 default
+  results root `defense_ml/defense_ml_project/results/30_schema33/paper_v4/transfer/` — inside
+  the *Campaign-1* tree, because `paper_v4/` has always been v4's default output directory.
+>
+  ⚠️ **Verified absent (2026-08-05).** The current `defense_detection_v4.py` has sections
+  `[1]`–`[8]` only. There is **no** section `[9]`, no transfer/LODO flags, and `--defense`
+  still defaults to `"fpnt"` rather than `None`. The repository owner confirmed this file is
+  the current one. So Step 35 documents work that is not in the pipeline, and Step 36 — which
+  did run LODO — used its own standalone script (`Step_34_Cross_Defense_Intersection/`)
+  instead. **Do not cite Step 35's flags as available, and do not assume `paper_v4/transfer/`
+  is populated.** Resolve against git history before relying on either.
