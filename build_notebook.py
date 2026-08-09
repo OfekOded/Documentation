@@ -52,12 +52,12 @@ IFACE_CC    = "src/olsr/model/olsr-defense-strategy.cc"
 # --- NS-3: current defense implementations (one file per defense) ---
 D_WATCHDOG  = "src/olsr/model/olsr-watchdog-defense.cc"
 D_WATCH_H   = "src/olsr/model/olsr-watchdog-defense.h"
-D_FPNT      = "src/olsr/model/olsr-defense-fpnt.cc"
-D_FPNT_H    = "src/olsr/model/olsr-defense-fpnt.h"
+D_FPNT      = "files for all defenses/FPNT/olsr-defense-fpnt.cc"
+D_FPNT_H    = "files for all defenses/FPNT/olsr-defense-fpnt.h"
 D_GCOP      = "src/olsr/model/olsr-defense-gcop.cc"
 D_GCOP_H    = "src/olsr/model/olsr-defense-gcop.h"
-D_TRUST     = "src/olsr/model/olsr-trust-defense.cc"
-D_TRUST_H   = "src/olsr/model/olsr-trust-defense.h"
+D_TRUST     = "files for all defenses/Trust/olsr-trust-defense.cc"
+D_TRUST_H   = "files for all defenses/Trust/olsr-trust-defense.h"
 
 # --- NS-3: feature schema + per-defense swap folder ---
 FEATURES    = "scratch/olsr_window_features.h"
@@ -3872,9 +3872,9 @@ kept out of features and written to the oracle/labels/runs tables instead.
 
 ### `olsr-{{dcfm,fpnt,watchdog,trust}}-eval-mitigation.cc` — the four dataset generators
 {ref("scratch/olsr-dcfm-eval-mitigation.cc", "olsr-dcfm-eval-mitigation.cc")} ·
-{ref("scratch/olsr-fpnt-eval-mitigation.cc", "olsr-fpnt-eval-mitigation.cc")} ·
+{ref("files for all defenses/FPNT/olsr-fpnt-eval-mitigation.cc", "olsr-fpnt-eval-mitigation.cc")} ·
 {ref("scratch/olsr-watchdog-eval-mitigation.cc", "olsr-watchdog-eval-mitigation.cc")} ·
-{ref("scratch/olsr-trust-eval-mitigation.cc", "olsr-trust-eval-mitigation.cc")}
+{ref("files for all defenses/Trust/olsr-trust-eval-mitigation.cc", "olsr-trust-eval-mitigation.cc")}
 
 **These four harnesses produced the machine-learning dataset.** They are near-identical:
 one canonical harness with the defense-layer include and casts swapped (the DCFM file's
@@ -4097,6 +4097,15 @@ md(f"""
 | 3 | **DCFM / GCOP** | {ref(D_GCOP)}, {ref(D_GCOP_H, "olsr-defense-gcop.h")} |
 | 4 | **TRUST** | {ref(D_TRUST)}, {ref(D_TRUST_H, "olsr-trust-defense.h")} |
 
+> **Repository layout changed 2026-08-04** (commits `07791e7`, `3746e1d`, `46f22d2`). FPNT and
+> TRUST — both sources and their `*-eval-mitigation.cc` simulations — were moved out of
+> `src/olsr/model/` and `scratch/` into a top-level `files for all defenses/` directory, and
+> **removed from `src/olsr/CMakeLists.txt`**. The links above point at the new locations.
+> `src/olsr/CMakeLists.txt` currently builds only `olsr-defense-strategy`, `olsr-defense-gcop`
+> and `olsr-watchdog-defense`, so **FPNT and TRUST no longer compile as part of the OLSR
+> module**; regenerating either dataset requires restoring them to the build first. DCFM and
+> Watchdog are unaffected. [VERIFIED — GitHub API, master @ 2026-08-04T15:56Z]
+
 ### NS-3 — per-defense swap folder (`{SWAP}/`)
 To run a given defense you overwrite the files in `src/olsr/model/` with that defense's
 set. The folder holds one subdirectory per defense:
@@ -4127,9 +4136,9 @@ The normalisation table {ref(f"{SWAP}/OLSR_Feature_Normalization_Table.docx", "O
 | File | Role |
 |---|---|
 | {ref("scratch/olsr-dcfm-eval-mitigation.cc")} | **Dataset generator — DCFM** (four-window feature emission) |
-| {ref("scratch/olsr-fpnt-eval-mitigation.cc")} | **Dataset generator — FPNT** |
+| {ref("files for all defenses/FPNT/olsr-fpnt-eval-mitigation.cc")} | **Dataset generator — FPNT** |
 | {ref("scratch/olsr-watchdog-eval-mitigation.cc")} | **Dataset generator — Watchdog** |
-| {ref("scratch/olsr-trust-eval-mitigation.cc")} | **Dataset generator — TRUST** |
+| {ref("files for all defenses/Trust/olsr-trust-eval-mitigation.cc")} | **Dataset generator — TRUST** |
 | {ref("scratch/gcopBaseSimulation.cc")} | 50-node base harness, four phases, dynamic attacker |
 | {ref("scratch/watchdogBaseSimulation.cc")} | Watchdog parity harness |
 | {ref("scratch/olsr-gcop-simulator.cc")} | 8-node bridge validation |
