@@ -22,6 +22,8 @@ DML = "defense_ml/defense_ml_project"
 # Campaign-2 Step-34 folder (cross-defense LODO experiment).
 S34 = "scripts_for_all_128/Step_34_Cross_Defense_Intersection"
 S35 = "scripts_for_all_128/step_35_dcfm_non_normalized"
+# Campaign-2 Step-38 folder (un-normalised DCFM, one CBR flow of 18 messages).
+S36 = "scripts_for_all_128/step_36_dcfm_non_normalized_1ch_18msgs"
 OUT = Path(__file__).parent / "Defense_Detection_Project_Report.ipynb"
 
 # --------------------------------------------------------------------------
@@ -272,25 +274,26 @@ md("""
 35. [Generalisation as a pipeline capability: mobility transfer, cross-defense matrix, and LODO](#step-35) — 2026-07-29
 36. [Cross-defense intersection: detecting an unseen defense; the Step-35 prediction overturned](#step-36) — 2026-08-04
 37. [The normalisation hypothesis measured: DCFM re-run on un-normalised features](#step-37) — 2026-08-05
+38. [Traffic load as a variable: DCFM un-normalised with one CBR flow](#step-38) — 2026-08-09
 
 **Part VI — Synthesis**
 
-37. [Open questions](#open-questions)
-38. [Planned full-scale campaign](#full-campaign)
+39. [Open questions](#open-questions)
+40. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-39. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-40. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-41. [`scratch/` — feature schema and simulations](#guide-scratch)
-42. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-43. [Repository-root batch scripts](#guide-scripts)
-44. [Reproducing the dataset — the exact commands](#guide-repro)
+41. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+42. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+43. [`scratch/` — feature schema and simulations](#guide-scratch)
+44. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+45. [Repository-root batch scripts](#guide-scripts)
+46. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-45. [References](#references)
-46. [File index](#file-index)
+47. [References](#references)
+48. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -3553,6 +3556,363 @@ sharpest open question in the project. Both are carried into *Open Questions*.
 > `Step_34_Cross_Defense_Intersection` the home of notebook [Step 36](#step-36).
 """)
 
+md(f"""
+<a id="step-38" name="step-38"></a>
+## Step 38 — Traffic load as a variable: DCFM un-normalised with one CBR flow
+**Date:** 2026-08-09
+
+### Motivation — the representation was fixed, so the simulation could be varied
+[Step 37](#step-37) removed normalisation as a confound and showed DCFM is detected at
+0.94–0.98 from control-plane flooding alone. It left one question sharply open: **how much of
+that signal depends on the data plane?** Every dataset in the project had carried **three CBR
+flows of 18 messages**. If DCFM's signature really is fictitious-node injection flooding TC,
+then reducing the data traffic should leave it largely untouched — and should erode any
+feature that measures the data plane.
+
+A new dataset was generated for exactly that test: un-normalised, identical schema, **one CBR
+flow of 18 messages** instead of three. This step runs three feature sets on it — the full 33
+V2 group, the 32-metric schema of [Step 29](#step-29), and the 27-set of
+[Step 33](#step-33) — against the three-flow results of [Step 37](#step-37).
+
+**Read the comparison with care.** Unlike [Step 37](#step-37), the two datasets differ in the
+*simulation*, not only in the emitter, so there is **no control group of the Step-37 kind**
+here: no quantity is constant by construction across both. Every 1-flow-vs-3-flow delta is
+therefore confounded with traffic load. Findings *within* the new dataset are `[VERIFIED]`;
+causal statements of the form "removing two flows caused X" are `[HYPOTHESIS]`.
+
+### The three feature sets
+All three are declared through `--features-file` in `METRICS` order — never through the
+preset — so the three runs differ **only** in the feature set:
+
+| Set | Definition |
+|---|---|
+| **33** | The complete V2 / `strict_observable_v2` parity group, i.e. `V2FeatureCsvHeader()` |
+| **32** | The 33 minus `RoutingOverheadBytesRatio` — identical to v4's `METRICS` and to the `metrics32` preset |
+| **27** | The 32 minus five carriers: `AvgTxPacketSize`, `FlowCount`, `RoutingOverheadRatio` (the drop3 leak carriers of [Step 30](#step-30)) and `AverageMprCount`, `NormalizedRoutingLoad` (the DCFM denominator cluster of [Step 32](#step-32) / [Step 33](#step-33)) |
+
+The `DataPacketRate` → `MacDataPacketRate` alias trap of [Step 37](#step-37) does **not** apply
+here: `MacDataPacketRate` appears in neither schema header, so the explicit name resolves
+directly. A different collision does: the raw `CoreAndV2` header emits **`DataPacketRate`
+twice** — once in Core group A, once in V2 — both from the same variable
+(`m_dataPackets / dur`). `pandas` mangles the second to `DataPacketRate.1`; the two columns
+were verified numerically identical. The raw CSV therefore has **133 columns, not 128**.
+[VERIFIED]
+
+### Pre-flight — seven checks before any learning
+| Check | Result |
+|---|---|
+| **Schema parity** — the 33 V2 names present and in identical order in all four conditions | pass; `DataPacketRate.1` byte-identical to its Core twin |
+| **Integrity** — 4 windows per run, single window length, four scenarios | pass; 8016 windows / 2004 runs (static), 8012 / 2003 (mobile), all 40 s |
+| **Class balance** | exactly 4008 / 4008 and 4006 / 4006 |
+| **Emitter identities** — `PacketDeliveryRatio` ≡ `RxTxPacketRatio`, PDR + PLR ≡ 1 | hold in all four conditions |
+| **Baseline provenance** — do the [Step 37](#step-37) trees reproduce their published figures? | yes, max drift **0.000038** across all four |
+| **Pipeline parity** — seed 42, 2×5 folds, `cal_fraction` 0.2, composites and transforms on, no `--n-features` cap | every knob matches |
+| **`run_id` pairing** | overlap 2004/2004 static, 1997/2003 mobile — **provenance only, not a counterfactual** |
+
+The baseline check is what makes the comparison quantitative rather than quoted: the
+[Step 37](#step-37) numbers were **re-measured on this machine**, not copied from the report.
+[VERIFIED]
+
+### Result 1 — the data plane collapses, and takes nine features with it
+`FlowCount` is `m_dataSentByFlow.size()`. With one flow it falls from a mean of 2.995 to
+**0.998**, and the five per-flow `Std` features become `Std()` over a single-element vector —
+identically zero:
+
+| | 3 flows | 1 flow |
+|---|---|---|
+| `FlowCount` mean | 2.995 | **0.998** |
+| Constant features among the 33 | 2 (static: 3) | **7** |
+| `AvgTxPacketSize` | constant 540.0 in static | `nunique=2`, \\|r\\| = 1.000 with `FlowCount` |
+
+`AvgTxPacketSize` deserves note: in [Step 37](#step-37) it was constant in static and therefore
+harmless. Here it takes two values and is perfectly collinear with `FlowCount` — both are
+indicators of *whether any data was sent at all* in the window (13 empty windows static, 235
+mobile). **[Step 37](#step-37)'s "constant, therefore auto-removed" argument does not carry
+over.** [VERIFIED]
+
+Effective dimension, measured two ways — on the base features, and on the engineered matrix
+using v4's own `engineer_features()` and `FeatureSelector`:
+
+| Set | base: 3f static / mobile | base: 1f static / mobile | engineered: 3f static / mobile | engineered: 1f static / mobile |
+|---|---|---|---|---|
+| 33 | 21 / 25 | **12 / 14** | 58 / 75 | **32 / 46** |
+| 32 | 21 / 25 | **12 / 14** | 58 / 75 | **32 / 46** |
+| 27 | 17 / 20 | **8 / 10** | 50 / 66 | **26 / 37** |
+
+The engineered figures are the ones that matter — squares, cubes and ratios of a pruned base
+feature can survive selection — and `run_config.json` does **not** report them (it logs
+`n_total_features`, i.e. before selection). Roughly **half** the usable dimension is gone.
+[VERIFIED]
+
+### Result 2 — sets 33 and 32 are bit-identical, in every model and every metric
+`RoutingOverheadBytesRatio` is pruned against `RoutingOverheadRatio` at \\|r\\| = 0.966–0.987 in
+**all four** (dataset × regime) cells. The consequence is total: across 13 models × 2 regimes ×
+6 metrics, sets 33 and 32 agree **to four decimals in every cell**. The single exception is
+`LightGBM`/mobile, which differs by 4.1 × 10⁻⁶ in ROC-AUC — a thousandth of the fold standard
+deviation, and invisible in all five threshold-dependent metrics, so the matrices reaching the
+models are identical and the difference is floating-point summation order.
+
+**This makes the 33-run a control rather than a third experiment.** It confirms in practice
+the reasoning by which v4 excluded `RoutingOverheadBytesRatio` from `METRICS` a priori. Had the
+two disagreed materially, it would have signalled a bug — not a finding. [VERIFIED]
+
+Worth recording separately: `RoutingOverheadBytesRatio` is the **strongest univariate feature
+in three of the four conditions** (0.844 / 0.903 one-flow, 0.846 / 0.930 three-flow), ahead of
+`TcMessageRate` in static. It is discarded only because of its correlation with
+`RoutingOverheadRatio`. Carried to *Open Questions*.
+
+### Result 3 — all 13 models, one flow, static
+`balanced_accuracy` at the in-fold threshold; `T1%` / `T5%` = TPR at 1% / 5% FPR. Sets 33 and
+32 are one column because they are identical.
+
+| Model | AUC 33/32 | Acc 33/32 | MCC 33/32 | T1% 33/32 | AUC 27 | Acc 27 | MCC 27 | T1% 27 |
+|---|---|---|---|---|---|---|---|---|
+| LightGBM | **0.9818** | **0.9400** | **0.8804** | 0.8468 | 0.9689 | 0.9104 | 0.8221 | **0.7226** |
+| Stacking | 0.9799 | 0.9389 | 0.8785 | 0.8226 | 0.9693 | 0.9154 | 0.8317 | 0.6901 |
+| CatBoost | 0.9786 | 0.9343 | 0.8689 | 0.8296 | **0.9697** | **0.9169** | **0.8344** | 0.6961 |
+| HistGB | 0.9780 | 0.9329 | 0.8672 | 0.8228 | 0.9677 | 0.9140 | 0.8292 | 0.7094 |
+| XGBoost | 0.9779 | 0.9316 | 0.8639 | **0.8326** | 0.9670 | 0.9110 | 0.8234 | 0.6881 |
+| AdaBoost | 0.9746 | 0.9238 | 0.8488 | 0.7621 | 0.9651 | 0.9111 | 0.8227 | 0.6553 |
+| RandomForest | 0.9709 | 0.9165 | 0.8336 | 0.7345 | 0.9678 | 0.9128 | 0.8270 | 0.6862 |
+| ExtraTrees | 0.9660 | 0.9031 | 0.8081 | 0.6785 | 0.9688 | 0.9164 | 0.8335 | 0.6957 |
+| MLP | 0.9510 | 0.8941 | 0.7907 | 0.7008 | 0.9472 | 0.8938 | 0.7904 | 0.5770 |
+| Ridge | 0.9177 | 0.8633 | 0.7395 | 0.6962 | 0.8799 | 0.8241 | 0.6613 | 0.5659 |
+| LogisticRegression | 0.8569 | 0.8119 | 0.6324 | 0.5826 | 0.9029 | 0.8392 | 0.6842 | 0.6014 |
+| SVM_rbf | 0.6234 | 0.5912 | 0.1832 | 0.0587 | 0.6520 | 0.6162 | 0.2345 | 0.1404 |
+| Dummy | 0.5000 | 0.5000 | 0.0000 | 0.0100 | 0.5000 | 0.5000 | 0.0000 | 0.0100 |
+
+### Result 4 — all 13 models, one flow, mobile
+
+| Model | AUC 33/32 | Acc 33/32 | MCC 33/32 | T1% 33/32 | AUC 27 | Acc 27 | MCC 27 | T1% 27 |
+|---|---|---|---|---|---|---|---|---|
+| CatBoost | **0.9705** | **0.9179** | **0.8375** | **0.8082** | **0.9642** | **0.9024** | **0.8086** | **0.7739** |
+| XGBoost | 0.9686 | 0.9153 | 0.8337 | 0.8050 | 0.9624 | 0.8995 | 0.8028 | 0.7690 |
+| Stacking | 0.9686 | 0.9160 | 0.8335 | 0.7775 | 0.9629 | 0.8983 | 0.7990 | 0.7639 |
+| HistGB | 0.9681 | 0.9165 | 0.8353 | 0.7969 | 0.9617 | 0.9005 | 0.8036 | 0.7726 |
+| LightGBM | 0.9675 | 0.9128 | 0.8276 | 0.7946 | 0.9606 | 0.9003 | 0.8044 | 0.7654 |
+| AdaBoost | 0.9652 | 0.9091 | 0.8206 | 0.7457 | 0.9613 | 0.8990 | 0.7999 | 0.7494 |
+| RandomForest | 0.9616 | 0.8973 | 0.7956 | 0.7454 | 0.9610 | 0.8939 | 0.7906 | 0.7489 |
+| ExtraTrees | 0.9517 | 0.8821 | 0.7665 | 0.7136 | 0.9546 | 0.8865 | 0.7756 | 0.7226 |
+| Ridge | 0.9413 | 0.8864 | 0.7759 | 0.6967 | 0.9407 | 0.8883 | 0.7786 | 0.6903 |
+| MLP | 0.8326 | 0.8094 | 0.6306 | **0.1981** | 0.8273 | 0.8074 | 0.6205 | **0.0752** |
+| LogisticRegression | 0.6702 | 0.6317 | 0.2892 | 0.0428 | 0.6578 | 0.6318 | 0.2849 | 0.0324 |
+| SVM_rbf | 0.6187 | 0.5869 | 0.1762 | 0.0271 | 0.6137 | 0.5841 | 0.1717 | 0.0141 |
+| Dummy | 0.5000 | 0.5000 | 0.0000 | 0.0100 | 0.5000 | 0.5000 | 0.0000 | 0.0100 |
+
+Two readings of these tables:
+
+- **The eight tree models are separated by 0.005 (static) to 0.010 (mobile) of AUC** — inside
+  the fold standard deviation. The "winner" is not a meaningful ranking, which is why the
+  cross-step comparison below is anchored on a fixed model.
+- **`MLP`/mobile is the cautionary case.** AUC 0.833 looks serviceable; `T1%` is **0.198** on
+  the 32-set and **0.075** on the 27-set. A model that misses more than nine in ten attacks at
+  a 1% false-alarm budget. Its ranking is fair, its probabilities are not calibrated in the
+  tail. [VERIFIED]
+
+### Result 5 — the set gap lives in the tail, not in AUC
+Fixed `HistGB` anchor, one flow:
+
+| Regime | metric | 33/32 | 27 | gap |
+|---|---|---|---|---|
+| static | ROC-AUC | 0.9780 | 0.9677 | 0.010 |
+| static | balanced acc | 0.9329 | 0.9140 | 0.019 |
+| static | MCC | 0.8672 | 0.8292 | 0.038 |
+| static | **TPR@1%FPR** | **0.8228** | **0.7094** | **0.114** |
+| mobile | ROC-AUC | 0.9681 | 0.9617 | 0.006 |
+| mobile | **TPR@1%FPR** | **0.7969** | **0.7726** | **0.024** |
+
+One point of AUC, eleven of TPR — in static. In mobile the tail gap is only 0.024. So the five
+features removed to build the 27-set buy something real, but **only in static and only at a low
+false-alarm budget**. This is [Step 29](#step-29)'s lesson and [Step 37](#step-37)'s Result 4
+recurring a third time: the ranking metric masks, the operating point exposes. [VERIFIED]
+
+### Result 6 — against three flows: static improves, mobile regresses
+Fixed `HistGB` anchor, three flows ([Step 37](#step-37)) versus one flow:
+
+| set | regime | ROC-AUC 3f → 1f | MCC 3f → 1f | fold std 3f → 1f |
+|---|---|---|---|---|
+| **27** | static | 0.9415 → **0.9677** (**+0.026**) | 0.7402 → 0.8292 (**+0.089**) | 0.0094 → **0.0040** |
+| **27** | mobile | 0.9711 → 0.9617 (−0.009) | 0.8313 → 0.8036 (−0.028) | 0.0035 → 0.0030 |
+| **32** | static | 0.9591 → **0.9780** (**+0.019**) | 0.7971 → 0.8672 (**+0.070**) | 0.0080 → **0.0028** |
+| **32** | mobile | 0.9760 → 0.9681 (−0.008) | 0.8462 → 0.8353 (−0.011) | 0.0027 → 0.0041 |
+
+In balanced accuracy the same pattern is larger, and it holds across the **whole** model zoo:
+
+| set | regime | mean delta, 13 models | range |
+|---|---|---|---|
+| **27** | static | **+0.037** | −0.026 … +0.082 |
+| **32** | static | **+0.028** | −0.020 … +0.073 |
+| **27** | mobile | −0.016 | −0.024 … 0.000 |
+| **32** | mobile | −0.016 | −0.063 … 0.000 |
+
+**In mobile all twelve non-`Dummy` models decline, without exception.** In static every model
+except `Ridge` improves. Per-model accuracy, three flows → one flow:
+
+| Model | 27 static | 27 mobile | 32 static | 32 mobile |
+|---|---|---|---|---|
+| CatBoost | 0.8720 → 0.9169 | 0.9178 → 0.9024 | 0.9027 → 0.9343 | 0.9258 → 0.9179 |
+| HistGB | 0.8688 → 0.9140 | 0.9148 → 0.9005 | 0.8965 → 0.9329 | 0.9227 → 0.9165 |
+| LightGBM | 0.8706 → 0.9104 | 0.9142 → 0.9003 | 0.9046 → 0.9400 | 0.9232 → 0.9128 |
+| XGBoost | 0.8694 → 0.9110 | 0.9141 → 0.8995 | 0.8973 → 0.9316 | 0.9261 → 0.9153 |
+| Stacking | 0.8745 → 0.9154 | 0.9168 → 0.8983 | 0.9018 → 0.9389 | 0.9235 → 0.9160 |
+| AdaBoost | 0.8685 → 0.9111 | 0.9107 → 0.8990 | 0.8865 → 0.9238 | 0.9192 → 0.9091 |
+| RandomForest | 0.8744 → 0.9128 | 0.9114 → 0.8939 | 0.8791 → 0.9165 | 0.9139 → 0.8973 |
+| ExtraTrees | 0.8729 → 0.9164 | 0.9097 → 0.8865 | 0.8744 → 0.9031 | 0.9087 → 0.8821 |
+| MLP | 0.8628 → 0.8938 | 0.8186 → 0.8074 | 0.8915 → 0.8941 | 0.8187 → 0.8094 |
+| Ridge | 0.8497 → **0.8241** | 0.9089 → 0.8883 | 0.8835 → **0.8633** | 0.9088 → 0.8864 |
+| LogisticRegression | 0.7576 → 0.8392 | 0.6563 → 0.6318 | 0.7384 → 0.8119 | 0.6944 → 0.6317 |
+| SVM_rbf | 0.5574 → 0.6162 | 0.6063 → 0.5841 | 0.5574 → 0.5912 | 0.6046 → 0.5869 |
+
+### Result 7 — why the two regimes move in opposite directions
+The pre-flight univariate table explains both signs with **one** mechanism. The five per-flow
+`Std` features that went to zero were **noise in static and signal in mobile**:
+
+| Feature | 3f static | 3f mobile | 1f (both) |
+|---|---|---|---|
+| `FlowJitterStd` | 0.5047 | **0.5889** | 0.5000 |
+| `FlowDelayStd` | 0.5005 | **0.5583** | 0.5000 |
+| `FlowLossRateStd` | 0.5065 | **0.5783** | 0.5000 |
+| `FlowThroughputStd` | 0.5010 | 0.5079 | 0.5000 |
+| `FlowDurationStd` | 0.5006 | 0.5012 | 0.5000 |
+
+Under mobility, variance *between* concurrent flows is itself informative — link breakage hits
+flows unequally. In a static topology it is close to pure noise. Removing it therefore cleaned
+the static problem and impoverished the mobile one. The **collapse of fold variance in static**
+(0.0094 → 0.0040 and 0.0080 → 0.0028, a factor of 2–3) is independent corroboration: fewer
+noise dimensions, a more stable model. [VERIFIED as observation]
+[HYPOTHESIS as causal claim — traffic load is confounded with the change]
+
+`Ridge` is the one model that declines in static as well (−0.026 and −0.020). Consistent with
+this reading: L2 shrinks all coefficients rather than selecting, so a linear model benefits from
+extra weak dimensions and is hurt when they vanish — the same behaviour that makes it *stronger*
+on the 32-set than the 27-set in static (0.8633 vs 0.8241). [HYPOTHESIS]
+
+### Result 8 — the control-plane signature is invariant to data-plane load
+This is the answer to the question the step was built to ask. Univariate AUC, three flows
+versus one:
+
+| Feature | 3f static | 1f static | 3f mobile | 1f mobile |
+|---|---|---|---|---|
+| `TcMessageRate` | 0.8116 | 0.8103 | 0.9095 | 0.9098 |
+| `AverageAdvertisedLinksPerTCMessage` | 0.7771 | 0.7765 | 0.7835 | 0.7836 |
+| `RoutingOverheadRatio` | 0.8127 | 0.8100 | 0.9252 | 0.8964 |
+| `AverageHopCount` | 0.6256 | **0.5628** | 0.7626 | **0.6633** |
+| `PacketDeliveryRatio` | 0.5356 | 0.5199 | 0.6014 | 0.5821 |
+
+The two features that carry DCFM's signature are **unchanged to the third decimal** while the
+data plane thins to a third of its traffic. The data-plane features weaken exactly as expected
+from having a third of the samples. [Step 37](#step-37)'s Result 6 — that the model measures
+control-plane flooding — is confirmed under a manipulation it was never fitted to. [VERIFIED]
+
+Consistently, `TDR` (`TcMessageRate × AverageAdvertisedLinksPerTCMessage`) remains the
+top-ranked feature in **five of the six** runs:
+
+| run | top features (permutation importance share) |
+|---|---|
+| 33/32 · static | `TDR` 0.459, `Delay_Per_Hop` 0.281, `AverageMprCount` 0.124 |
+| 33/32 · mobile | `TDR` 0.447, `AverageAdvertisedLinksPerTCMessage` 0.173, `Delay_Per_Hop` 0.168 |
+| 27 · mobile | `TDR` 0.533, `Delay_Per_Hop` 0.179, `AverageAdvertisedLinksPerTCMessage` 0.111 |
+| **27 · static** | **`Delay_Per_Hop` 0.550**, `TDR` 0.288, `AverageAdvertisedLinksPerTCMessage` 0.077 |
+
+The exception is instructive rather than contrary. `Delay_Per_Hop` =
+`AverageEndToEndDelay / AverageHopCount`; with a single flow it becomes a clean per-hop
+measurement of the queueing load that TC flooding imposes, no longer averaged across three
+competing flows. The mechanism being read is the same one. [HYPOTHESIS]
+
+### Controls
+- **Permutation null.** 100 grouped permutations on 27·static, labels shuffled within run:
+  observed **0.9710**, null **0.5002 ± 0.0080**, p = 0.0099 — the floor for 100 permutations,
+  so no permutation came close. The observed value is 59 null standard deviations out, and the
+  null band matches [Step 37](#step-37)'s 0.4989 ± 0.0072 and [Step 36](#step-36)'s
+  0.486–0.535. Note that `permutation_test` uses a **different protocol** from the main CV — 3
+  folds, no calibration, no threshold — which is why its observed 0.9710 differs from the
+  summary table's 0.9697; it measures both sides under the same protocol, so the comparison is
+  internally consistent. [VERIFIED]
+- **Anchor stability.** The static-improves / mobile-regresses pattern holds for **12 of 12**
+  non-`Dummy` models in mobile and **11 of 12** in static (`Ridge` excepted). The conclusion
+  does not depend on the anchor.
+- **Non-linearity, a fourth time.** `SVM_rbf` reaches 0.61–0.65 and `LogisticRegression`
+  0.66–0.90 against 0.96–0.98 for the boosted trees. Consistent with
+  [Steps 29](#step-29), [36](#step-36) and [37](#step-37). `LogisticRegression` on 32·static
+  should not be quoted without its spread: 0.8569 with a **fold std of 0.131**.
+
+### A reporting defect found in `run_config.json`
+Every one of the ten runs records `feature_set: "metrics32"`, including those driven by
+`--features-file` with 33 or 27 names. `cfg.feature_set` is simply never updated by
+`resolve_features()`. The companion field `n_base_features_used` **is** correct (33 / 32 / 27),
+so no run is mis-specified and no result is affected — but a reader auditing the JSON alone
+would mis-identify every run. Recorded here rather than patched, since changing v4 mid-campaign
+would break parity with [Step 37](#step-37). [VERIFIED]
+
+### Conclusion
+DCFM's detectability rests on the **control plane** and is largely indifferent to how much data
+traffic the network carries. Cutting the CBR flows from three to one left `TcMessageRate` and
+`AverageAdvertisedLinksPerTCMessage` unchanged to the third decimal, cost the data-plane
+features roughly a tenth of AUC each, and — because those features were noise in a static
+topology — actually **improved** static detection to 0.968–0.978 while costing mobile 0.008.
+
+Two consequences beyond DCFM. First, the static↔mobile inversion that
+[Step 32](#step-32) and *Open Questions* item 3 have carried since Campaign 2 began is **not a
+fixed property of the defense**: it reverses when data-plane variance is removed, which points
+at per-flow variance under mobility as its source rather than anything about DCFM. Second, a
+feature set's worth cannot be read from AUC — the 32-set beats the 27-set by 0.010 of AUC and
+by **0.114 of TPR at a 1% false-alarm budget** in static.
+
+### What this does not establish
+Still **DCFM only**, and now with a weaker experimental design than [Step 37](#step-37): the
+two datasets differ in the simulation, so no delta here is a clean counterfactual. The
+mechanism proposed in Result 7 — per-flow variance as the source of the mobility advantage —
+is a `[HYPOTHESIS]` supported by univariate AUCs and by the fold-variance collapse, not a
+measurement. The decisive test would be a **three-flow dataset with the five per-flow `Std`
+features explicitly dropped**: if static then rises and mobile falls, the mechanism is
+confirmed with traffic load held constant. Carried into *Open Questions*.
+
+### Sources
+- Pipeline: {refml("defense_detection_v4.py")} — **unmodified**; this step adds no v4 change
+- Dataset probe (schema, degeneracy, univariate AUC, effective dimension), run on both
+  datasets: {refml(S36 + "/probe_1ch.py", "probe_1ch.py")}
+- Pre-flight gate — seven checks, exits non-zero on failure; imports v4 and calls its own
+  `engineer_features()` and `FeatureSelector` so the effective dimension is measured with the
+  pipeline's code rather than a reimplementation:
+  {refml(S36 + "/preflight.py", "preflight.py")}
+- Runner (activates the `defense` conda env, aborts if LightGBM / XGBoost / CatBoost are
+  missing, caps `MAX_JOBS` at 8 for 10 physical cores, and diffs each feature list against
+  `head -1` of the CSV before running — v4 warns and continues on a missing name):
+  {refml(S36 + "/run_all.sh", "run_all.sh")}
+- Comparisons: {refml(S36 + "/compare_1ch_vs_3ch.py", "compare_1ch_vs_3ch.py")} (best-model,
+  fixed-anchor, config parity, top importances) and
+  {refml(S36 + "/compare_accuracy_prev_vs_cur.py", "compare_accuracy_prev_vs_cur.py")}
+  (per-model metric deltas against [Step 37](#step-37); matches rows **by model name**, since
+  the summary tables are sorted by AUC and the order differs between steps)
+- Feature sets, in `METRICS` order:
+  {refml(S36 + "/33_features/features_33.txt", "features_33.txt")},
+  {refml(S36 + "/32_features/features_32.txt", "features_32.txt")},
+  {refml(S36 + "/27_features/features_27.txt", "features_27.txt")}
+- Pre-registered predictions, written before any learning run of this step:
+  {refml(S36 + "/PREDICTIONS.md", "PREDICTIONS.md")}
+- Dataset: `Dcfm_All_128_features_no_norm_1ch_18msgs/` — `static/` and `mobile/`, 2004 / 2003
+  runs and 8016 / 8012 windows, generated 2026-08-09
+- Outputs: `{S36}/{{33,32,27}}_features/results_{{static,mobile}}/` (each with `summary.csv`,
+  `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`,
+  `figures/`, plus `permutation_test.json` on 27·static); `{S36}/preflight_report/`
+  (`integrity.csv`, `control_group.csv`, `pairing.csv`, `degeneracy_univariate.csv`,
+  `effective_dimension.csv`, `baseline_provenance.csv`, `probe_1ch.log`, `probe_3ch.log`);
+  `{S36}/comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`,
+  `comparison_matrix.csv`, `config_parity.csv`, `importance_top.csv`,
+  `acc_prev_vs_cur.csv`, `acc_prev_vs_cur_tables.txt`, `whatsapp_tables.txt`);
+  `{S36}/logs/`
+- Antecedents: [Step 37](#step-37) (the three-flow baseline, re-measured here);
+  [Step 33](#step-33) (the 27-set); [Step 29](#step-29) (the 32-set)
+
+### Runtime
+Six runs in **39 minutes** (2026-08-09 20:56–21:36 UTC), plus 11 min 38 s for the
+27·static re-run carrying the permutation null. 20 logical / **10 physical** cores, 31 GB RAM.
+
+> **Folder numbering.** The script folder is `step_36_dcfm_non_normalized_1ch_18msgs`,
+> following the repository's own counter, which runs two behind the notebook — the same offset
+> that makes `step_35_dcfm_non_normalized` the home of notebook [Step 37](#step-37).
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -3570,7 +3930,8 @@ These cannot be resolved by analysis alone.
 |---|---|---|
 | 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. **Addressed ([Step 34](#step-34)):** FPNT's TC enlargement survives the static<->mobile transfer test (ROC-AUC 1.000 both directions), so detection via TC size is a legitimate, generalising finding — though confirmed against a *single* implementation only. |
 | 2 | **Does DCFM's mechanism inherently alter MPR structure and TC advertisement?** | Determines whether the DCFM cluster (`AverageMprCount`, `AdvertisedLinks`, `NormalizedRoutingLoad`) is a legitimate signature or an artefact. |
-| 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 32](#step-32)). **[Step 37](#step-37) narrows this:** the data-artefact branch is now excluded for the normalisation channel — the two datasets are the same simulations and the inversion survives de-normalisation (0.9591 static vs 0.9760 mobile raw). The recovered `nObs` is also larger under mobility (57.8 vs 53.8), consistent with the mechanistic reading. Still open: why. |
+| 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 32](#step-32)). **[Step 37](#step-37) narrows this:** the data-artefact branch is now excluded for the normalisation channel — the two datasets are the same simulations and the inversion survives de-normalisation (0.9591 static vs 0.9760 mobile raw). The recovered `nObs` is also larger under mobility (57.8 vs 53.8), consistent with the mechanistic reading. **[Step 38](#step-38) then reverses the inversion:** with one CBR flow instead of three, static overtakes mobile in every one of the six runs (e.g. 0.9780 vs 0.9681 on the 32-set). So the advantage is **not a fixed property of the defense**. The candidate source is per-flow variance under mobility — the five `Flow*Std` features carry 0.558–0.589 univariate AUC in three-flow mobile against 0.500–0.507 in static, and go identically zero with one flow. `[HYPOTHESIS]`; the decisive test is a three-flow run with those five features explicitly dropped. |
+| 5 | **Is `RoutingOverheadBytesRatio` a discarded real signal?** | It is the strongest univariate feature in three of [Step 38](#step-38)'s four conditions (0.844 / 0.903 one-flow, 0.846 / 0.930 three-flow), ahead of `TcMessageRate` in static — yet it is excluded from `METRICS` a priori as an FPNT byte-padding artefact, and pruned in every fold at \\|r\\| = 0.966–0.987 against `RoutingOverheadRatio`. For DCFM it measures the byte share of TC flooding, which is the mechanism itself. Whether the a-priori exclusion is right for DCFM is untested. |
 | 4 | **Does forcing `RtsCtsThreshold = 0` on small packets constitute a cheat for the model?** | Raised at the 2026-05-18 meeting ([Step 18](#step-18)). Two defenses force RTS/CTS; if the classifier reads that, it is reading our configuration, not the defense. **This question anticipated the whole leakage analysis and is still open.** |
 
 > **The framing that resolves Q1–Q2** is *not* whether a feature name sounds behavioural,
@@ -4232,6 +4593,13 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | {refml(S35 + "/features_27.txt", "features_27.txt")} | The 27-set in `METRICS` order, so `--features-file` reproduces the Step-33 `--drop-features` selection exactly |
 | {refml(S35 + "/features_32.txt", "features_32.txt")} | The canonical 32-metric schema, declared explicitly rather than via the preset |
 | {refml(S35 + "/feature_name_map.csv", "feature_name_map.csv")} | All 128 columns: raw name, normalised name, whether renamed, the `NORM-001` denominator, and whether that denominator is defense-sensitive |
+| {refml(S36 + "/probe_1ch.py", "probe_1ch.py")} | **[Step 38](#step-38)** dataset probe: header/duplicate-column check, per-feature degeneracy and univariate AUC, and base-feature effective dimension — run on both the one-flow and three-flow datasets |
+| {refml(S36 + "/preflight.py", "preflight.py")} | **[Step 38](#step-38)** validity gate (seven checks, non-zero exit on failure). Imports v4 and calls its own `engineer_features()` + `FeatureSelector`, so effective dimension is measured on the **engineered** matrix — the figure `run_config.json` omits |
+| {refml(S36 + "/run_all.sh", "run_all.sh")} | Orchestrates the six one-flow runs (33/32/27 × static/mobile). Activates the `defense` env, aborts on a missing booster, caps `MAX_JOBS` at 8, and diffs each feature list against `head -1` of the CSV first |
+| {refml(S36 + "/compare_1ch_vs_3ch.py", "compare_1ch_vs_3ch.py")} | One-flow vs three-flow vs normalised: best-model and fixed-anchor tables, delta matrix, config parity, top importances |
+| {refml(S36 + "/compare_accuracy_prev_vs_cur.py", "compare_accuracy_prev_vs_cur.py")} | Per-model metric deltas against [Step 37](#step-37), any `summary.csv` column via `--metric`. Matches rows **by model name**, never by position |
+| {refml(S36 + "/33_features/features_33.txt", "features_33.txt")}, {refml(S36 + "/32_features/features_32.txt", "features_32.txt")}, {refml(S36 + "/27_features/features_27.txt", "features_27.txt")} | The three sets under test, all in `METRICS` order |
+| {refml(S36 + "/PREDICTIONS.md", "PREDICTIONS.md")} | Six pre-registered predictions for [Step 38](#step-38), written before any of its learning runs |
 | {refml(S34 + "/step34_lodo.py", "step34_lodo.py")} | **Step 36** cross-defense LODO orchestrator: outer LODO + nested-k + worst-rank top-k intersection; `--permute-labels` null |
 | {refml(S34 + "/step34_common.py", "step34_common.py")} | Self-contained loaders, run-level split, MI rank matrix, worst-rank selection, metrics (no v4 import) |
 | {refml(S34 + "/summarize_step34.py", "summarize_step34.py")} | 8-row results table + static↔mobile core overlap |
@@ -4250,6 +4618,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `{S34}/` (**Step 36** cross-defense LODO) | Per regime (`static/`, `mobile/`) a `heldout_<defense>/` dir with `rank_matrix.csv`, `nested_k_selection.csv`, `selected_features.txt`, `metrics.json`, `roc_curve.csv`, plus `stability.json` and `summary/step34_results.csv`. Five run trees: `results_rf/` (99·RF), `results_rf_noleak/` (99·RF−7 suspects), `results_27/` (27·LogReg), `results_27_rf/` (27·RF), `results_27_rf_PERMUTED/` (permutation null) |
 | `{S35}/` (**[Step 37](#step-37)** un-normalised DCFM) | `results_run_nonorm_27/` and `results_run_nonorm_32/`, each with `dcfm_static/` + `dcfm_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`scale_comparison_*.csv`, `univariate_by_class_*.csv`, `denominator_direct_*.csv`, `denominator_recovered_*.csv`, `pairing_*.json`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `config_parity.csv`) |
 | `{DML}/results/30_schema33/paper_v4/transfer/` | **[Step 35](#step-35) generalisation experiments** (written under the v4 default results root, not under `scripts_for_all_128/`): `transfer_mobility.csv`, `transfer_defense_<mobility>.csv`, `lodo_<mobility>.csv`, `transfer_config.json` (reproduction manifest), and `figures/` (`transfer_mobility_<defense>.png`, `transfer_defense_<mobility>.png`, `lodo_<mobility>.png`) |
+| `{S36}/` (**[Step 38](#step-38)** one-flow un-normalised DCFM) | `33_features/`, `32_features/`, `27_features/`, each with `results_static/` + `results_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`integrity.csv`, `control_group.csv`, `pairing.csv`, `degeneracy_univariate.csv`, `effective_dimension.csv`, `baseline_provenance.csv`, `probe_1ch.log`, `probe_3ch.log`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `comparison_matrix.csv`, `config_parity.csv`, `importance_top.csv`, `acc_prev_vs_cur.csv`, `acc_prev_vs_cur_tables.txt`, `whatsapp_tables.txt`); `logs/` |
 
 ### Reproduction environment
 ```bash

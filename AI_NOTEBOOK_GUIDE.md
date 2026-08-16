@@ -96,7 +96,7 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 37 steps)
+## 4. Notebook structure (7 parts, 38 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
@@ -106,7 +106,7 @@ Chronological. Each step is one `md(f"...")` cell.
 | **II — Defense Implementation** | 7–19 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
 | **III — ML Campaign 1 (`defense_ml`)** | 20–25 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
 | **IV — The Transition** | 26 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–37 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–38 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -209,6 +209,24 @@ list, and the **File Index** (which links NS-3 files and lists ML files + result
    `FeatureSelector` removes all five in-fold, so a nominal 27-feature set is **effectively 23**.
    Quote nominal counts, but footnote the effective one.
 
+8. **Three more traps found in Step 38** (one-flow dataset):
+
+   - **The raw `CoreAndV2` header emits `DataPacketRate` twice** — once in Core group A, once in
+     V2 — both from `m_dataPackets / dur`. `pandas` mangles the second to `DataPacketRate.1`, so
+     the raw CSV has **133 columns, not 128**. The values are identical, so nothing is wrong
+     numerically, but `--feature-set all` on raw data carries a perfectly collinear pair. The
+     normalised schema has no collision (Core is `DataPacketRatePerFlow` there).
+   - **`run_config.json` misreports `feature_set`.** It records `"metrics32"` for **every** run,
+     including `--features-file` runs with 33 or 27 names, because `cfg.feature_set` is never
+     updated by `resolve_features()`. `n_base_features_used` is correct — audit that field, not
+     `feature_set`.
+   - **Effective dimension must be measured on the engineered matrix, not the base features.**
+     Squares, cubes and ratios of a pruned base feature routinely survive selection: the 27-set
+     on the one-flow static data keeps 8 of 27 base features but **26** engineered columns.
+     `run_config.json` reports only `n_total_features` (before selection), so the real figure has
+     to be computed by importing v4 and calling its own `engineer_features()` + `FeatureSelector`
+     — see `step_36_.../preflight.py`.
+
 ---
 
 ## 6. Validate after every rebuild
@@ -229,8 +247,8 @@ print('steps sequential 1..N:', steps == [str(i) for i in range(1, len(steps)+1)
 print('stray "{" leaks (f-string bugs):', body.count('{ref(') + body.count('{refml('))
 ```
 
-Expected (as of Step 37): `cells: 58`, `BROKEN internal links: []`,
-`steps sequential 1..N: True` with `N = 37`, `stray "{" leaks: 1`.
+Expected (as of Step 38): `cells: 59`, `BROKEN internal links: []`,
+`steps sequential 1..N: True` with `N = 38`, `stray "{" leaks: 1`.
 The single known leak is a pre-existing one — a `{ref("run_simulations.sh")}` inside a plain
 `md("...")` cell that should be `md(f"...")`. It is harmless (it renders literally) and unrelated
 to recent edits; leave it unless you are specifically fixing it. If the count rises **above 1**,
@@ -283,6 +301,8 @@ Each step folder holds both its scripts and its result tree, so a step is self-c
 | `Step_33_Defense_Independent_Normalization_Features/` | Step 34 | `classify_apriori.py`, `run_apriori21.sh`, `compare_apriori.py`, `transfer_test.py`, `features_apriori_lenient.txt`, `results_run9_apriori21/` (+ `transfer_test/`) |
 | `Step_34_Cross_Defense_Intersection/` | Step 36 | `step34_lodo.py` and a `features/` dir (incl. `features_27_step32.txt`, the canonical 27-set); five result trees — `results_rf/`, `results_rf_noleak/`, `results_27/`, `results_27_rf/`, `results_27_rf_PERMUTED/` |
 | `step_35_dcfm_non_normalized/` | Step 37 | `preflight.py`, `run_dcfm_nonorm.sh`, `compare_normalized_vs_raw.py`, `features_27.txt`, `features_32.txt`, `feature_name_map.csv`, `results_run_nonorm_27/`, `results_run_nonorm_32/`, `preflight_report/`, `comparison/` |
+| `step_36_dcfm_non_normalized_1ch_18msgs/` | Step 38 | `probe_1ch.py`, `preflight.py`, `run_all.sh`, `compare_1ch_vs_3ch.py`, `compare_accuracy_prev_vs_cur.py`, `PREDICTIONS.md`; `33_features/`, `32_features/`, `27_features/` (each with its `features_NN.txt`, `results_static/`, `results_mobile/`); `preflight_report/`, `comparison/`, `logs/` |
+| `step31_normalization_test/` | — | Ad-hoc normalisation-leak probe (`test_normalization_leakage.py`, `step31_run.log` at the tree root). Not tied to a notebook step; predates the per-step reorganisation |
 | `_tools/` | — | `table.py` (quick AUC/MCC/TPR table for any results dir) |
 
 Conventions for this tree:
