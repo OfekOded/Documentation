@@ -275,25 +275,26 @@ md("""
 36. [Cross-defense intersection: detecting an unseen defense; the Step-35 prediction overturned](#step-36) — 2026-08-04
 37. [The normalisation hypothesis measured: DCFM re-run on un-normalised features](#step-37) — 2026-08-05
 38. [Traffic load as a variable: DCFM un-normalised with one CBR flow](#step-38) — 2026-08-09
+39. [Realigning the Watchdog defense to its source papers, and a measurement bug](#step-39) — 2026-08-19
 
 **Part VI — Synthesis**
 
-39. [Open questions](#open-questions)
-40. [Planned full-scale campaign](#full-campaign)
+40. [Open questions](#open-questions)
+41. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-41. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-42. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-43. [`scratch/` — feature schema and simulations](#guide-scratch)
-44. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-45. [Repository-root batch scripts](#guide-scripts)
-46. [Reproducing the dataset — the exact commands](#guide-repro)
+42. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+43. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+44. [`scratch/` — feature schema and simulations](#guide-scratch)
+45. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+46. [Repository-root batch scripts](#guide-scripts)
+47. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-47. [References](#references)
-48. [File index](#file-index)
+48. [References](#references)
+49. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -3913,6 +3914,415 @@ Six runs in **39 minutes** (2026-08-09 20:56–21:36 UTC), plus 11 min 38 s for 
 > that makes `step_35_dcfm_non_normalized` the home of notebook [Step 37](#step-37).
 """)
 
+md(f"""
+<a id="step-39" name="step-39"></a>
+## Step 39 — Realigning the Watchdog defense to its source papers, and a measurement bug that invalidated every earlier blacklist reading
+**Date:** 2026-08-19 – 2026-08-23
+
+### Motivation — a citation the implementation could not support
+The Watchdog defense has been cited throughout this project as an implementation of
+Baiad et al. (2014). Preparing a publication makes that citation load-bearing: if the
+implementation diverges materially from the paper it claims to implement, it is a new
+defense, and the write-up becomes a defense-design paper rather than a
+defense-*detection* paper. The supervisor's framing was exact — where the source leaves
+something undefined we may choose, but the burden is on us to show the choice is
+reasonable and does not contradict the paper.
+
+Auditing the implementation against the paper required first assembling the sources.
+Baiad et al. (2014) is a six-page conference paper that specifies little and defers to
+its references. Two further papers were located:
+
+- **Marti et al. (MobiCom 2000)** — the origin of the watchdog technique, cited as [3]
+  by Baiad but never explained there.
+- **Baiad, Alhussein, Otrok, Muhaidat (Vehicular Communications 5, 2016)** — a journal
+  extension of the 2014 paper by the same first author, which the project had not been
+  aware of. It restates the 2014 algorithms verbatim and adds a third, physical-layer
+  scheme.
+
+### What the sources actually specify — and what they do not
+Reading all three changed the audit substantially.
+
+**Marti retroactively justifies code that looked invented.** The 2014 paper never
+describes how a watchdog works, deferring to [3]. Marti does: a buffer of recently
+forwarded packets, a timeout after which an unmatched packet increments a failure
+tally, and a threshold on that tally. He also states explicitly that a watchdog should
+*not* accuse on first evidence but watch over a period. The implementation's
+`ForwardTimeout`, `BlacklistThreshold` and probation window are therefore not
+heuristics we added — they are the mechanism of the reference the paper cites.
+[VERIFIED — Marti et al. §3.1]
+
+**The 2016 paper closes what 2014 left open.** It supplies the detection-percentage
+formula in a form consistent across four equations, and gives the only definition of
+false-alarm rate in the corpus: *the percentage of normal nodes detected as attackers
+due to collisions*. It also settles an apparent contradiction — 2014's
+`CF(i) = (1/Rd)(1/N)V` minimised and 2016's `QoS(i) = Rd·N·(1/V)` maximised are exact
+reciprocals, so the two describe the same cluster-head election.
+
+**One variable is undefined in both.** `MAC_s`, the monitor status in Algorithm 4
+Part B, is stated to be 0 or 1 with no criterion for which. Two papers, identical
+pseudo-code, same silence.
+
+**The reporting mechanism is absent by construction.** Both papers specify the
+aggregation *rule* — equal weight, filtered against MAC-monitor reports — but neither
+specifies how a report reaches an aggregator: no message format, no recipient, no
+schedule. Both evaluate in MATLAB over Mobisim trace files, so no messages are
+exchanged and none is needed. This is the single most consequential gap for an ns-3
+implementation.
+
+### Correction 1 — the cross-layer test was running in the opposite direction
+This is the substantive correction: it is the mechanism that makes the design
+cross-layer at all, and it was operating against its own purpose.
+
+Both papers are unambiguous. 2014 §IV-B: *by monitoring the number of RTS sent and CTS
+received, at the MAC layer level, as well as data received and forwarded, at the network
+layer, we can determine the existence of attackers* — and the worked example that follows
+is entirely about a node wrongly accused because a collision, not a drop, prevented
+delivery. Algorithm 4 Part A of 2016 makes the consequence explicit: where a MAC report
+names a node, the watchdog report against it is set to zero. **MAC evidence exonerates.**
+
+The implementation did the reverse. In `EvaluateMissingForward`, a neighbour that had
+issued many RTS frames but little DATA received **+2 evidence** — the reasoning being
+that a blackhole would appear to be trying to forward. Plausible in isolation, but it
+inverts the premise of the entire cross-layer design, whose reason for existing is to
+suppress collision-induced false positives rather than manufacture them.
+
+The heuristic was removed and replaced by `CollisionSuspectedFor()`: if a monitored node
+issued more RTS frames than it was granted CTS over the observation window, the medium
+was contended, and the report is voided without scoring. Two implementation points
+carried decisions of their own:
+
+- **Window length.** Counts are kept per aggregation round and the test sums the current
+  and the immediately preceding round. A single round is too short: with a 500 ms forward
+  timeout and a 1 s period, part of a pending packet's life precedes the current round,
+  so a one-round test can miss the very contention that killed it. Two rounds cover a
+  packet's lifetime while bounding how long one discrepancy can exonerate a node —
+  verified to expire after exactly two rotations.
+- **Unsigned underflow.** CTS may legitimately exceed RTS when a node's RTS was
+  transmitted outside our hearing but the CTS answering it was not. Without an explicit
+  `cts >= rts` guard the subtraction wraps in `uint32_t` and every node reads as
+  permanently contended. The guard treats the case as evidence of a clear medium, which
+  it is.
+
+Verification exposed a property of the published mechanism worth recording: **the
+exculpatory test is gameable.** A node that emits RTS frames it never completes maintains
+`rts > cts` in every round and is exonerated indefinitely, however much it drops — five
+uncompleted RTS per round over twenty rounds accumulates zero evidence. Neither paper
+considers a detector-aware attacker; both model the blackhole as a passive dropper. The
+implementation is faithful precisely in exhibiting the weakness. `[VERIFIED]`
+
+### Correction 2 — CTS was never counted, so the comparison never happened
+`OnCtsReceived()` was an empty stub, commented *reserved for future refinement*. The
+`rtsFromThisNode` counter existed and was fed, but nothing on the other side of the
+comparison did. The central quantity of §3.2 of the 2016 paper — RTS sent against CTS
+received — was therefore never computed, in any run, since the defense was written.
+
+Implementing it required one 802.11 detail. A CTS frame carries a single address field
+(RA / Addr1) holding the address of the station whose RTS is being cleared — not the
+station sending the CTS. Overhearing a CTS therefore tells the watchdog that **that**
+station won the medium, and the frame is credited to it. This is what makes the count
+comparable to the RTS count for the same node.
+
+A self-filter was added on both handlers: a node's own RTS and the CTS clearing it say
+nothing about a monitored neighbour.
+
+### Correction 3 — `MAC_s` was graded where the papers make it binary
+Algorithm 4 Part B computes `new_weight_a(i) = wd(i) × MAC_s(j)`, with `MAC_s` stated to
+be *either 1 or 0*, then `new_weight = count(new_weight_a)`. The 2014 text states the
+intent directly: *if the watchdog has problems while listening, it can be eliminated from
+being watchdog.* A monitor that was itself colliding contributes **nothing** to that
+round.
+
+The implementation maintained `m_selfReliabilityScore`, an exponentially-weighted average
+over local PHY drops, in the range [0.6, 1.0], used to scale the blacklist threshold. Two
+departures followed. The score was graded rather than binary. More importantly, **the
+floor of 0.6 meant no watchdog was ever eliminated** — a permanently deaf monitor still
+accused, merely later. That is the opposite of the mechanism the papers rely on for their
+reported improvement, and it is the reason the change matters rather than being cosmetic.
+
+`LocalMacStatus()` now returns `MAC_s` as a boolean, checked before any per-neighbour
+reasoning — the disqualification is a property of the monitor, not of the monitored node.
+When false, the watchdog scores nothing that round. With the scaling gone, the blacklist
+threshold is a fixed count again, as in Marti.
+
+Behavioural testing found a defect introduced by the change itself. `SelfDropsThreshold`
+had been calibrated against a **single** observation window; comparing a two-round sum
+against a one-round threshold silently halves the configured tolerance, and a watchdog
+sustaining exactly the permitted number of drops per round was muted permanently. The
+comparand is now `2 × SelfDropsThreshold`, preserving the attribute's meaning as
+*tolerated drops per round*. No reading of the papers supports the halved behaviour; it
+was an arithmetic consequence of the window choice, invisible to inspection. `[VERIFIED]`
+
+### Correction 4 — a relay to nowhere counted as a relay
+Marti §3.1 states the limitation plainly: *for the watchdog to work properly, it must
+know where a packet should be in two hops.* Under DSR the next hop is carried in the
+packet; under a hop-by-hop protocol it is not, and *a malicious or broken node could
+broadcast the packet to a non-existant node and the watchdog would have no way of
+knowing.* He concludes that the watchdog *works best on top of a source routing
+protocol.* OLSR is hop-by-hop, so this implementation sits squarely in the case he warns
+about, and the Baiad papers inherit the watchdog without revisiting the point.
+
+`OnNeighborForwardedPacket` discarded its `receiver` argument entirely and matched on
+packet UID alone: any retransmission of the packet cleared the pending entry, including a
+broadcast addressed to nothing.
+
+`IsPlausibleOnwardHop()` now gates the credit. A retransmission counts as a forward only
+if it is not broadcast or multicast (a unicast data relay never is — this is Marti's
+literal attack), not addressed back to this node, not addressed to the forwarder itself,
+and — where the address resolves — present somewhere in this node's link-state view:
+neighbour set, two-hop neighbour set, or topology set. A fabricated address appears in
+none of the three.
+
+The original plan was stronger: verify that the relay was addressed toward the
+destination, by computing what the neighbour's own routing table would say. **That is not
+cleanly implementable.** Determining a neighbour's next hop requires the neighbour's
+routing table; this node has only its own, and reconstructing one from the topology set
+yields an approximation that would produce false positives. What was implemented covers
+the failure Marti actually names, without the approximation.
+
+One decision was required. When the receiver's MAC does not resolve to an IP — the
+mapping is learned from overheard broadcasts and is necessarily incomplete — the forward
+is **credited**, not rejected. Rejecting on non-resolution would manufacture false
+positives for legitimate relays to nodes not yet mapped, which is exactly the failure
+mode this work is trying to remove. The rule adopted, and stated as such, is that the
+watchdog does not accuse on absence of information.
+
+Note the dependency this creates: a node whose link-state view is still empty rejects
+every resolved receiver, because nothing is yet known. The existing 15 s warmup covers
+it. **If `WarmupDuration` is ever shortened, this check is the first thing to
+re-examine.** `[VERIFIED]`
+
+### Correction 5 — a verdict that never expires, adopted on Marti's authority
+This one is not a contradiction of the papers but a gap they leave open in opposite
+directions, and the reasoning is worth recording because it decided the change.
+
+Neither Baiad paper acts on a detection at all. Their outputs are a detection percentage
+and a false-alarm rate; the words *isolate*, *exclude* and *avoid* appear in neither, and
+neither reports any network-performance metric — which is what one would measure if nodes
+were being removed. They are detection systems and stop at detection.
+
+The response therefore derives from Marti, where the pathrater assigns a suspected node a
+rating of −100 and the source routes around it. Marti §3.2 then adds a recommendation:
+a node marked misbehaving *due to a temporary malfunction or incorrect accusation* should
+not be excluded permanently, and its rating should be restored *after a long timeout* —
+followed by the admission that this *is not implemented in our simulations*.
+
+It was not implemented here either, and the measurements above quantify what that cost:
+9 mobile runs in 121 where an innocent node was blocked, and 10 where a correct block
+still cost more than 20 points of PDR. `ReleaseExpiredBlacklist()` now lapses a verdict
+after `BlacklistDuration`, clearing evidence, probation state and timestamp on release —
+leaving the count in place would re-convict on the next timed-out packet, which is
+permanence under another name. Verified: a single drop immediately after release does not
+re-convict, while sustained dropping re-convicts within a few rounds.
+
+Two departures from Marti remain and are declared: exclusion here is absolute rather than
+a path-rating penalty, and it is enforced during MPR selection and routing-table
+construction rather than by the source. Enforcement is required by this project — without
+it there is no PDR effect to measure — but it is an addition to the published detector.
+
+### Parameters after the realignment
+| Attribute | Value | Provenance |
+|---|---|---|
+| `ForwardTimeout` | 500 ms | Marti §3.1 (mechanism; no value given) |
+| `BlacklistThreshold` | 3 | Marti §3.1 (a count, not the *bandwidth* he specifies — see below) |
+| `ProbationDuration` | 2 s | Marti §3.1 — *do not immediately accuse … continue to watch over a period* |
+| `WarmupDuration` | 15 s | ns-3 necessity; no counterpart in any source |
+| `SelfDropsThreshold` | 5 per round | Criterion for `MAC_s`; the papers define the range {{0,1}} but no criterion |
+| `RtsCtsDiscrepancyThreshold` | 1 | **New.** The papers say only *a difference*; 1 is the literal reading |
+| `VerifyOnwardHop` | true | **New.** Marti §3.1; false reproduces the unverified behaviour |
+| `BlacklistDuration` | 30 s | **New.** Marti says only *a long timeout*; 0 restores permanent exclusion |
+| `RtsToDataRatioThreshold` | — | **Inert.** Drove the inverted heuristic of Correction 1 |
+| `MinRtsForHeuristic` | — | **Inert.** Same |
+| `MinSelfReliability` | — | **Inert.** Floor of the graded score replaced in Correction 3 |
+
+The three inert attributes are still registered, so existing harness invocations that set
+them continue to run; `defense_params.txt` now marks them `INERT` and records the three
+new ones, having previously advertised superseded parameters as live.
+
+### The audit as a whole — three categories of difference
+Every difference from the sources was classified, on the supervisor's framing that a
+choice is permissible where the source is silent but must be justified:
+
+- **Corrected (7)** — the source specifies it and the code did not comply: the five
+  above, plus the fixed threshold restored in Correction 3 and the probation window
+  retained on Marti's authority.
+- **Chosen (6)** — the source leaves it open: the `MAC_s` criterion, the observation
+  window, the discrepancy threshold, the expiry duration, the treatment of an unresolved
+  relay target, and the count-versus-rate threshold reading.
+- **Structural (5)** — a difference between an offline computation and a network
+  simulation, not resolvable by implementation: the meaning of *detection*, decision
+  aggregation, the MAC-monitor role, the response to a detection, and the clustering
+  layer.
+
+One entry in the *chosen* group deserves its own note. Marti defines the threshold as a
+**bandwidth**, and the choice is load-bearing: his sixth weakness is that a node can
+evade detection by dropping below the configured rate, *but is thereby forced to forward
+at the threshold rate* — the threshold is what makes the watchdog enforce a minimum
+service level rather than merely detect total failure. This implementation uses an
+absolute count. Under a full blackhole the two order neighbours identically, so nothing
+observable differs and the change could not even be validated here; it would matter for a
+grayhole, which is out of scope. Recorded rather than corrected.
+
+### Measuring what the papers measure
+The harness recorded network-performance metrics (PDR, throughput, delay) but neither
+of the two quantities the papers report. Seven columns were added to
+`windows_oracle.csv` (`HEADER_VERSION` 4 → 5): `true_detections`,
+`false_detections`, `watchdogs_total`, `watchdogs_in_range`, `detection_percent`,
+`detection_percent_in_range`, `false_alarm_rate`.
+
+No new instrumentation was needed. A loop already walked every non-attacker node,
+fetched its blacklist and tested whether the attacker was in it — then collapsed the
+result into an aggregate. The change counts what that loop already computed.
+
+**`windows_features.csv` and `windows_labels.csv` are byte-identical to before**, so
+the ML pipeline is unaffected; the oracle file is already excluded from features by the
+harness's own instructions. [VERIFIED — header diff]
+
+### ⚠️ The measurement bug: `blacklist_max_size` is always zero
+Analyses of defense efficacy in this project have used the oracle column
+`blacklist_max_size`. **That column is zero in every window of every run, for every
+defense, whether or not the defense works.**
+
+The harness samples it at `windowStart − 2 s`, and the UDP flows run **only inside** the
+measurement window. At the sampling instant no data has been exchanged, so no watchdog
+has observed anything and every blacklist is empty — by construction, always. The same
+timing applies to `min_attacker_trust`, whose companion fields are named `*PrevWindow`
+precisely because this offset is deliberate for the path-related quantities it was
+designed for.
+
+The consequence is that **any comparison of defenses resting on `blacklist_max_size` is
+uninformative** — a zero reading says nothing about whether a defense detected anything.
+The contradiction was visible and went unnoticed: PDR recovered by 17 points while the
+column read zero across all 484 windows. If no node was ever blocked, the routing had no
+reason to improve. [VERIFIED — scheduling chain traced from `installWindow` to `EndSlot`]
+
+The same trap was very nearly repeated. The detection counters were first added inside
+that same start-of-window function; had they shipped there, a defense-enabled window
+would have reported the *previous* slot's verdicts. `SampleDetectionAccuracy` therefore
+runs at `windowEnd − 1 ms`, as a separate pass so that the existing columns keep their
+established timing. **Eighteen unit tests of the arithmetic passed against the wrong
+sampling point** — the formulas were correct and were being evaluated at the wrong
+instant, which no unit test could see.
+
+> **Rule for future work.** Before relying on an oracle column, locate its
+> `Simulator::Schedule` and confirm when it is sampled; and treat a column that is
+> constant across every row as a measurement defect until proven otherwise, not as a
+> finding.
+
+### The finding: the published detection metric measures opportunity, not detection
+With detection instrumented, the 2016 metric could be computed — and does not mean what
+its name suggests.
+
+Algorithm 2 of the 2016 paper computes network-layer detection as a **neighbour
+relation**: for each attacker and each watchdog, `if N(attacker, wd) = 1 then
+detections++`. There is no packet comparison, no buffer, no timeout. A monitor within
+transmission range counts as having detected. [VERIFIED — Alg. 2 as printed]
+
+In an implementation that tracks packets, only the node that *handed a packet to* the
+attacker can determine that it was not forwarded. Every other neighbour hears traffic it
+has no reference for. The numerator is therefore bounded by the number of relaying
+predecessors — typically one per flow — not by the number of nodes in range.
+
+Measured over 300 runs per configuration: a mean of **7.3 watchdogs within range** of the
+attacker, of which typically **one** detects it. Applying the published formula yields
+3.4%; the same events against an opportunity-normalised denominator yield 7.1%. The
+papers report 87–97%.
+
+**The gap is definitional, not a matter of detector quality.** A validation run in the
+papers' own topology (1000 × 100 m corridor, 30 nodes, extended radio range) was
+performed to test the alternative explanation — that the gap is a consequence of our
+sparser grid. It is not: `detection_percent_in_range` remained ≈ 7% there as well. That
+run also showed the corridor is far less connected than assumed — `watchdogs_in_range`
+was 14–19 of 29, matching the geometric prediction that a 250 m radio covers half of a
+1000 m corridor — and its acceptance yield fell from 28% to 11%, so it was stopped at
+three accepted runs once it had answered the question. `[VERIFIED]` for the measured
+values; `[HYPOTHESIS]` that neighbour-counting is the whole of what the MATLAB
+implementation does, since that code is not published.
+
+Both denominators are emitted, together with the raw counts, so either can be
+recomputed without re-running.
+
+### Validation: the defense still works
+Regression over **300 runs per configuration**, paired within run (attack-only window
+versus defense+attack window on the same topology):
+
+| | PDR recovery | 95% CI | caught attacker | false accusations (dva / defense-only) |
+|---|---|---|---|---|
+| **static** | **+17.23 pts** | [+13.73, +20.72] | 33% of windows | **0 / 0** |
+| **mobile** | **+12.05 pts** | [+7.61, +16.48] | 32% of windows | 62 / 79 |
+
+Neither interval crosses zero. Zero false accusations across 604 static windows locates
+the false-positive problem in mobility-induced link breakage — a link breaking mid-transfer
+means the watchdog never hears the relay — which is precisely the *ambiguous collision*
+case Marti names and the cross-layer correlation of Baiad exists to suppress.
+
+Decomposing the mobile runs that lost more than 20 points of PDR gave three roughly equal
+groups: a third had a false accusation, a third had a **correct** detection and lost
+delivery anyway, and a third had no detection at all and are attributable to mobility
+variance rather than to the defense. The middle group is a genuine cost of the mechanism:
+excluding an attacker that is the only link holding part of the network together is worse
+than the packets it was discarding. Neither Baiad paper can observe this, as neither
+measures packet delivery. [VERIFIED]
+
+Adopting Marti's release recommendation carried a measurable cost of its own: releasing a
+node permits it to be misjudged again, so a single persistent misjudgement becomes several
+counted events (0.21 → 0.26 false accusations per defense-only mobile window, different
+samples). The recommendation was adopted because the source specifies it, not because it
+improved a number; the cost is reported because Marti never implemented the
+recommendation and so never observed it. `[HYPOTHESIS]` on the magnitude — the two
+samples are different runs, not the same seeds.
+
+### What was deliberately not implemented
+| Item | Reason |
+|---|---|
+| Decision aggregation between watchdogs | The aggregation *rule* is specified; the reporting mechanism is not, in either paper. Implementing it means designing a protocol absent from the source — message format, recipient, timing — which would be a contribution of ours presented as theirs |
+| MAC-monitor nodes as a separate population | The papers select them "in the same range of the watchdogs", i.e. by proximity. Since each node reads its own PHY directly, the roles were merged: direct measurement replaces inference from proximity, and no reporting protocol is required |
+| Algorithm 1 of the 2014 paper (the hidden-terminal geometric test) | **Deleted by the authors themselves** in the 2016 version |
+| The VANET clustering layer (CH election, QoS, direction-based voting) | This project targets general OLSR, not the vehicular variant; cluster-head election does not bear on the detection mechanism |
+| The 2016 physical-layer scheme (signature keys, maximum-likelihood test) | A third detection scheme added in the journal version. The 2016 paper reports its Net+MAC scheme separately, so citing it does not require implementing the PHY layer |
+| Threshold as a *rate* rather than a count | Marti defines a threshold **bandwidth**, whose purpose is to enforce a minimum service level. Under a full blackhole the two are equivalent and the difference is unobservable here; it would matter for a grayhole, which is out of scope |
+| MPR-targeted attacker selection, and the papers' simulation parameters | Both require changing attack code or project infrastructure, which was out of scope for this work |
+
+### Defects found during this work
+Three, all caught before shipping, each of a kind the others could not have caught:
+
+1. **Threshold halved silently.** `SelfDropsThreshold` was calibrated against a single
+   observation window; summing two windows without adjusting the comparand muted any
+   watchdog sitting exactly at the configured tolerance. Found by a behavioural test.
+2. **Sampling point.** Described above. Found by tracing the scheduling chain; all
+   arithmetic tests passed against it.
+3. **Duplicate implementation.** Blacklist release was implemented twice, and
+   `BlacklistDuration` registered as an attribute twice — which aborts ns-3 during
+   TypeId construction, so the defense would not have loaded at all. Found by a
+   structural duplicate scan; every behavioural test passed against the duplicated file,
+   because each copy was individually correct. A duplicate-symbol check over member
+   declarations, method declarations, struct fields, function definitions and attribute
+   names is now part of the QA pass.
+
+### Sources
+- Defense: {ref(D_WATCHDOG)}, {ref(D_WATCH_H, "olsr-watchdog-defense.h")}
+- Harness: {ref("scratch/olsr-watchdog-eval-mitigation.cc")}
+- New attributes: `RtsCtsDiscrepancyThreshold`, `VerifyOnwardHop`, `BlacklistDuration`;
+  superseded and now inert: `RtsToDataRatioThreshold`, `MinRtsForHeuristic`,
+  `MinSelfReliability` (retained so existing harness invocations still run, and marked
+  `INERT` in `defense_params.txt`)
+- Outputs: `windows_oracle.csv` gains seven columns (`HEADER_VERSION` 5);
+  `Release_Check/{{static,mobile}}/` (300 runs each); `Temporary_Experiment_1/paper_topology/`
+  (the papers'-topology validation run, 3 accepted)
+- Papers: Baiad et al., IWCMC 2014; Baiad, Alhussein, Otrok, Muhaidat,
+  *Vehicular Communications* 5 (2016) 9–17; Marti, Giuli, Lai, Baker, MobiCom 2000
+- Antecedents: [Step 7](#step-7) (the Watchdog first built); [Steps 10](#step-10)–[12](#step-12)
+  (hardening, the two false-positive bugs, and the risk analysis whose parameters this step
+  re-derives from the sources); [Step 18](#step-18) (the `RtsCtsThreshold = 0` question,
+  which this step touches but does not resolve)
+
+### Consequence for the ML campaign
+`HEADER_VERSION` moved 4 → 5. The features and labels files are unchanged, so existing
+models and results stand. But a comparison across defenses requires all defenses to be
+generated by the same harness build, and the Watchdog defense itself has changed
+behaviour — the full-scale campaign should regenerate Watchdog rather than reuse
+pre-2026-08-19 data.
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -4415,13 +4825,14 @@ md("""
 1. **Clausen, T. & Jacquet, P.** (2003). *RFC 3626 — Optimized Link State Routing Protocol (OLSR)*. IETF. https://www.rfc-editor.org/rfc/rfc3626
 2. **Perkins, C., Belding-Royer, E. & Das, S.** (2003). *RFC 3561 — Ad hoc On-Demand Distance Vector (AODV) Routing*. IETF.
 3. **Baiad, R., Otrok, H., Muhaidat, S. & Bentahar, J.** (2014). *Cooperative Cross Layer Detection for Blackhole Attack in VANET-OLSR*. IEEE IWCMC, 863–868. — **Defense 1 (Watchdog)**
+3b. **Baiad, R., Alhussein, O., Otrok, H. & Muhaidat, S.** (2016). *Novel cross layer detection schemes to detect blackhole attack against QoS-OLSR protocol in VANET*. Vehicular Communications, 5, 9–17. https://doi.org/10.1016/j.vehcom.2016.09.001 — journal extension of [3]; located in [Step 39](#step-39) and used there to resolve the detection-percentage formula and the false-alarm definition
 4. **Tan, S., Li, X. & Dong, Q.** (2015). *Trust Based Routing Mechanism for Securing OLSR-Based MANET*. Ad Hoc Networks, 30. — **Defense 2 (FPNT)**
 5. **Schweitzer, N., Cohen, L., Hirst, T., Dvir, A. & Stulman, A.** (2025). *Achieving MANET Protection without the Use of Superfluous Fictitious Nodes*. Computer Communications, 229, 107978. https://doi.org/10.1016/j.comcom.2024.107978 — **Defense 3 (DCFM/GCOP)**
 6. **Adnane, A., Bidan, C. & de Sousa Júnior, R. T.** (2013). *Trust-based security for the OLSR routing protocol*. Computer Communications, 36(10–11), 1159–1171. — **Defense 4 (TRUST)** *(confirmed from the `olsr-trust-defense.h` source header)*
 7. **Schweitzer, N., Stulman, A., Shabtai, A. & Margalit, R. D.** (2016). *Mitigating Denial of Service Attacks in OLSR Protocol Using Fictitious Nodes*. IEEE Transactions on Mobile Computing, 15(1), 163–172.
 7. **Schweitzer, N., Stulman, A., Margalit, R. D. & Shabtai, A.** (2017). *Contradiction Based Gray-Hole Attack Minimization for Ad-Hoc Networks*. IEEE Transactions on Mobile Computing, 16(8), 2174–2183.
 8. **von Mulert, J., Welch, I. & Seah, W. K. G.** (2012). *Security Threats and Solutions in MANETs: A Case Study Using AODV and SAODV*. Journal of Network and Computer Applications.
-9. **Marti, S., Giuli, T. J., Lai, K. & Baker, M.** (2000). *Mitigating Routing Misbehavior in Mobile Ad Hoc Networks*. MobiCom, 255–265.
+9. **Marti, S., Giuli, T. J., Lai, K. & Baker, M.** (2000). *Mitigating Routing Misbehavior in Mobile Ad Hoc Networks*. MobiCom, 255–265. — the origin of the watchdog technique, cited but not explained by [3]; supplies the buffer/timeout/tally mechanism, the six weaknesses, and the blacklist-release recommendation adopted in [Step 39](#step-39)
 10. **Hayajneh, T., Krishnamurthy, P., Tipper, D. & Kim, T.** (2009). *Detecting Malicious Packet Dropping in the Presence of Collisions and Channel Errors in Wireless Ad Hoc Networks*. IEEE ICC, 1–6.
 11. **Bianchi, G.** (2000). *Performance Analysis of the IEEE 802.11 Distributed Coordination Function*. IEEE JSAC, 18(3), 535–547.
 12. *Countering Data and Control Plane Attack on OLSR Using Passive Neighbor Policing and Inconsistency Identification*. https://dl.acm.org/doi/10.1145/3345837.3355955
