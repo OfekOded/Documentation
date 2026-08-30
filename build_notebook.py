@@ -277,25 +277,26 @@ md("""
 38. [Traffic load as a variable: DCFM un-normalised with one CBR flow](#step-38) — 2026-08-09
 39. [Realigning the Watchdog defense to its source papers, and a measurement bug](#step-39) — 2026-08-19
 40. [Realigning the TRUST defense to Adnane et al. (2013): the missing Sections 6 and 7](#step-40) — 2026-08-18
+41. [The single-listener rebuild: a 17-observable schema and four harness changesets](#step-41) — 2026-08-30
 
 **Part VI — Synthesis**
 
-41. [Open questions](#open-questions)
-42. [Planned full-scale campaign](#full-campaign)
+42. [Open questions](#open-questions)
+43. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-43. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-44. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-45. [`scratch/` — feature schema and simulations](#guide-scratch)
-46. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-47. [Repository-root batch scripts](#guide-scripts)
-48. [Reproducing the dataset — the exact commands](#guide-repro)
+44. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+45. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+46. [`scratch/` — feature schema and simulations](#guide-scratch)
+47. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+48. [Repository-root batch scripts](#guide-scripts)
+49. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-49. [References](#references)
-50. [File index](#file-index)
+50. [References](#references)
+51. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -4722,6 +4723,187 @@ only the forward monitor, and every component this work changed is off in it. **
 > `files for all defenses/Trust/` and restore them to `src/olsr/CMakeLists.txt`, which
 > currently builds neither FPNT nor TRUST.
 """)
+
+
+md(f"""
+<a id="step-41" name="step-41"></a>
+## Step 41 — The single-listener rebuild: a 17-observable schema and four harness changesets
+**Date:** 2026-08-30
+
+### Motivation — the 128-feature schema was never one observation model
+
+The 95 Core + 33 V2 schema of {ref("scratch/olsr_window_features.h")} had grown by accretion,
+and by this point it mixed vantage points inside a single row. The control-plane group was fed
+from one listening node, while the data-plane and per-flow groups were still fed from
+`Ipv4::Tx` on **every** node — a network-wide transmit-side trace. A row therefore described a
+network partly as one radio hears it and partly as an omniscient observer sees it, which is not
+a threat model anyone holds.
+
+The supervisor supplied the resolution: a fixed list of **17 observables**, every one of them
+computable by a single node with a radio in promiscuous mode, mapped in `arm_spec.py` under the
+`LISTENER` arm and produced by the reference harness `iolsr-tests-corrected.cc`
+(`SniffFrameInto` for accumulation, `SaveObserverMetrics` for derivation). The task was to make
+this project's four harnesses emit exactly that.
+
+### What was done — a new collector, and four changesets applied to all four harnesses
+
+**A. The collector was replaced wholesale (schema v6).** Groups A–L are gone. The header is now a
+deliberate re-implementation of the reference, with every counter named after its counterpart in
+that file so the two can be diffed line by line. The 17 columns:
+
+| # | Column | Computation |
+|---|---|---|
+| 1 | `TcMessageRate` | unique TCs per second (deduped by originator + msgSeq) |
+| 2 | `AverageAdvertisedLinksPerTCMessage` | `tcRows / tcCount`, over every heard copy |
+| 3 | `AverageMprCount` | `SumAdvertisedLinks / DistinctAddrsSeen` |
+| 4 | `AverageHopCount` | `tcHopSum / tcCount`, over every heard copy |
+| 5–6 | `MidMessageRate`, `HnaMessageRate` | counts / duration (identically zero; kept as a health check) |
+| 7 | `RoutingOverheadBytesRatio` | `olsrBytes / dataBytes` |
+| 8 | `NormalizedRoutingLoad` | `olsrFrames / dataFrames` |
+| 9 | `DataPacketRate` | all sniffed frames per second |
+| 10 | `Throughput` | `dataBytes * 8 / duration` |
+| 11 | `AvgTxPacketSize` | `bytes / frames` |
+| 12–13 | `AvgFlowDuration`, `FlowDurationStd` | per perceived source, last-seen minus first-seen |
+| 14–17 | `AvgFlowThroughput`, `FlowThroughputStd`, `AvgTxBytesPerFlow`, `AvgTxPacketsPerFlow` | per perceived source |
+
+Seven properties of the reference are easy to get wrong and are reproduced deliberately, each
+flagged in the header:
+
+- **HELLO is counted.** A frame enters `frames`/`bytes` before any filtering, and any UDP/698
+  frame — HELLO included — enters `olsrFrames`/`olsrBytes`. The earlier harness dropped HELLO on
+  the rationale that a remote passive attacker cannot sniff it; that rationale died with the
+  move to a receive-side vantage, because HELLO from a neighbour is exactly what one radio hears.
+- **RTS/CTS/ACK are counted** in `frames`/`bytes`, so column 9 is a MAC frame rate and column 11
+  is pulled down by tiny control frames.
+- **"Source" is the IPv4 source of every IPv4 frame, OLSR broadcasts included.** Every audible
+  neighbour is therefore a distinct source, and columns 12–17 measure neighbour visibility rather
+  than application flows.
+- **`dataBytes`/`dataFrames` count all IPv4 traffic, OLSR included**, so column 10 is named
+  `Throughput` but is really the IP-layer air bitrate.
+- **Columns 2 and 4 are not deduplicated while column 1 is.** The reference exposes a deduplicated
+  variant as well, but the spec maps column 2 to the non-deduplicated term.
+- **`SumAdvertisedLinks` is not `tcRows`** — it is the sum, over each originator heard, of that
+  originator's **most recent** advertisement.
+- **Column 8 is a share, not a ratio** — see the correction below.
+
+**B. TRF-006 — the minimum-hop acceptance criterion was removed.** `AssertMinHops` became
+`AssertRouteExists`: a run is rejected only when OLSR has no route for a flow at all. The
+`too_close` rejection, `--minHops`, the `(minHops-1) * radioRange` geometric filter in
+`SelectDataFlowPairs`, and the `min_hops_required` column of `runs.csv` are all gone. Hop
+distance is still measured and logged, purely for the record. **Runs that earlier versions
+rejected as too close are now accepted, so the accepted-run population differs from every
+earlier harness version.**
+
+**C. WIN-003 — the neutral prologue is now conditional.** It exists only so the acceptance gates
+can run in the neutral state when slot 0 might carry attack or defense. In canonical order slot 0
+**is** baseline, so its own 60 s slot stabilisation already is that prologue and a second one only
+made the run 60 s longer. Canonical order is now **400 s** (4 × 100), mixed order stays 460 s.
+Slot timings became runtime values derived from `g_initialStabilization`; the gates keep firing at
+a fixed `t = 60 s`, neutral in both modes.
+
+**D. SL-2/SL-3 — one vantage point, one entry point.** Every feature now comes from
+`Phy/MonitorSnifferRx` on a single node, resolved from `--listenerNode` and defaulting to the
+first attacker id, recorded in `runs.csv` as `listener_node`. The collector has exactly one
+observation function, `ObserveSniffedFrame()`, which takes the raw PSDU and parses it itself in
+the reference's order — so the caller cannot introduce a divergence by filtering or by counting
+bytes at a different layer. `PhyTxBeginCallback`, `TryConnectPhyTrace`, the in-flight
+`(src, dst, IP-id)` correlation map, `FinalizeInFlightDeliveries` and Branch B of
+`TraceOlsrPacket` were all removed. `TraceOlsrPacket` keeps Branch A only: **oracle counters,
+which stay network-wide because ground truth is omniscient by definition.**
+
+### Three defects found in the process
+
+1. **A `return` where a `break` belonged.** The HELLO case of the message-parsing loop exited the
+   whole sniffer callback rather than skipping the message. ns-3's OLSR aggregates queued messages
+   into one packet, so **a TC sharing a packet with a preceding HELLO was silently dropped**, and
+   the frame never reached the MAC accounting either. Parsing now lives in the collector and the
+   case is a `break`. [VERIFIED — source]
+
+2. **The mixed vantage was live, not a no-op.** The SL-2 changelog claimed the four data-plane
+   `Observe*` entry points were no-ops; in the shipped header they were not — they fed the whole
+   G group and all 22 flow columns of the L group from the network-wide trace. Any dataset
+   generated between SL-2 and this step has data-plane columns that are **not** single-listener,
+   whatever its header says. [VERIFIED — source]
+
+3. **`NormalizedRoutingLoad` collapsed on a zero denominator.** The metric was
+   `ObsOlsrFrames / ObsNonOlsrDataFrames`, whose denominator is zero whenever the vantage point
+   heard no non-OLSR data frame. With one low-rate UDP pair and a fixed vantage point that is not
+   an edge case: the supervisor measured it at **64.3% of static and 51.1% of mobile observer
+   rows**, with the pipeline catching the `ZeroDivisionError` and storing `0.0` — so "all control,
+   no data", an effectively infinite ratio, became indistinguishable from its exact opposite.
+   `arm_spec.py` was corrected on 2026-08-28 to the **share** form,
+   `ObsOlsrFrames / SniffedDataFrames`, and this collector follows. The share is bounded in
+   `[0, 1]` and strictly monotone in the old ratio, so the ordering of every previously defined
+   row is preserved and the collapsed rows now take `1.0`. The metric is undefined only when no
+   IPv4 frame was heard at all, and emits **NaN** there rather than a filled-in number, matching
+   the same-day fix to `_eval_obs`; those rows are to be dropped in analysis, not imputed.
+   [VERIFIED — supervisor's source and measurement]
+
+### The oracle table was unified across the four harnesses
+
+The seven detection-accuracy columns that existed only in the Watchdog harness were ported to the
+other three, so all four now emit an **identical 31-column `windows_oracle.csv`** that
+concatenates directly. `SampleDetectionAccuracy()` is byte-identical in the four files: it uses
+only the base-class `OlsrDefenseStrategy::GetBlacklist` plus `olsr::RoutingProtocol::GetNeighbors`,
+both of which every harness already relied on, so nothing defense-specific is assumed. Its sampling
+timing — at `winEnd - 0.001`, the close of the window — is preserved exactly, for the reason
+[Step 39](#step-39) established: accusations accumulate *during* a window, so sampling at window
+start reports the previous slot's verdicts.
+
+Two of the columns were renamed from `watchdogs_total` / `watchdogs_in_range` to
+**`defenders_total` / `defenders_in_range`**. The metric counts accusations and is
+defense-agnostic; naming the columns after one defense would have been wrong in three files out of
+four, and naming them differently per file would have defeated the point of a shared schema.
+
+### Result
+
+All four harnesses are at `HARNESS_VERSION 3.0.0` / `HEADER_VERSION 8`, emitting a 17-column
+feature block, an identical 31-column oracle table, and a `runs.csv` that gained `listener_node`
+and lost `min_hops_required`.
+
+Verification was mechanical rather than by inspection, because the edits were scripted and one
+scripted edit had already deleted a block instead of replacing it:
+
+- **Formula transcription.** `SaveObserverMetrics` was transcribed to Python alongside this
+  collector's expressions and both were run over 2 002 synthetic counter states, including an
+  empty window and a zero-denominator case: **34 034 comparisons, zero mismatches.** [VERIFIED]
+- **Parse order.** The ordered sequence of guards and counter updates was extracted from
+  `SniffFrameInto` and from `ObserveSniffedFrame` and compared position by position: **31 of 31
+  identical.** This catches a class of error the formula check cannot — a counter incremented at
+  the wrong point covers a different set of frames without changing any single formula. [VERIFIED]
+- **Structural checkers** for brace balance, undefined identifiers, duplicate definitions, and
+  CSV header/row width. The duplicate-definition checker was written after a scripted copy
+  swallowed an adjacent function and produced a redefinition; brace balance had not caught it,
+  because the braces were perfectly balanced. [VERIFIED]
+
+### Two consequences worth stating explicitly
+
+**The listener is the attacker.** `--listenerNode` defaults to the first attacker id, and the
+attackers are placed at the grid centre. The features therefore describe the network *from the
+vantage of the node the defense is acting against*, not from a neutral node. That is a coherent
+threat model — an adversary asking whether a defense is running against it — but it is a
+different question from "can any node tell whether this network runs a defense", and the reference
+harness picks its observers at random from the non-attacker nodes instead. [VERIFIED — source]
+
+**`detection_percent` is not comparable across defense families.** Its denominator assumes every
+node running the defense is a potential detector, and `detection_percent_in_range` narrows that to
+one-hop neighbours of an attacker. Both encode the source paper's threat model, in which detection
+is local observation and there is no alert propagation. A defense that propagates accusations
+produces a numerator independent of geometry; a defense that operates on the control plane can
+detect from three hops away, making the in-range denominator irrelevant rather than merely small.
+[HYPOTHESIS — the formulas are read from source; whether each defense's `GetBlacklist` is fed by
+propagation has not been traced]
+
+### Sources
+- Collector: {ref("scratch/olsr_window_features.h")} (schema v6, 17 columns)
+- Harnesses: {ref("scratch/olsr-dcfm-eval-mitigation.cc")}, {ref("scratch/olsr-watchdog-eval-mitigation.cc")},
+  and the FPNT and TRUST equivalents under {ref(SWAP)}
+- Specification: `arm_spec.py` (`LISTENER` arm) and `make_arm_bundles.py`, supplied by the
+  supervisor; reference harness `iolsr-tests-corrected.cc` (GCOP tree, ns-3.47)
+- Antecedents: [Step 39](#step-39) (the oracle sampling rule this step preserves);
+  [Step 26](#step-26) (feature normalisation, the schema this one replaces)
+"""
+)
 
 md("""
 ---
