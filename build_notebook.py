@@ -278,25 +278,26 @@ md("""
 39. [Realigning the Watchdog defense to its source papers, and a measurement bug](#step-39) — 2026-08-19
 40. [Realigning the TRUST defense to Adnane et al. (2013): the missing Sections 6 and 7](#step-40) — 2026-08-18
 41. [The single-listener rebuild: a 17-observable schema and four harness changesets](#step-41) — 2026-08-30
+42. [The first 17-observable campaigns: a NaN fix, 2,000-run DCFM and Watchdog datasets, and the tradeoff measured](#step-42) — 2026-09-01
 
 **Part VI — Synthesis**
 
-42. [Open questions](#open-questions)
-43. [Planned full-scale campaign](#full-campaign)
+43. [Open questions](#open-questions)
+44. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-44. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-45. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-46. [`scratch/` — feature schema and simulations](#guide-scratch)
-47. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-48. [Repository-root batch scripts](#guide-scripts)
-49. [Reproducing the dataset — the exact commands](#guide-repro)
+45. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+46. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+47. [`scratch/` — feature schema and simulations](#guide-scratch)
+48. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+49. [Repository-root batch scripts](#guide-scripts)
+50. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-50. [References](#references)
-51. [File index](#file-index)
+51. [References](#references)
+52. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -4905,6 +4906,273 @@ propagation has not been traced]
 """
 )
 
+md(f"""
+<a id="step-42" name="step-42"></a>
+## Step 42 — The first 17-observable campaigns: a NaN fix, 2,000-run DCFM and Watchdog datasets, and the tradeoff measured end to end
+**Date:** 2026-08-30 → 2026-09-01
+
+### Motivation — the schema of [Step 41](#step-41) had never been run at scale
+
+[Step 41](#step-41) replaced the 128-feature schema with the supervisor's 17 single-listener
+observables and applied four changesets to all four harnesses, but it stopped at the rebuild. No
+campaign had been generated on the new schema, no defense had been measured through it, and the
+tradeoff thesis — the project's central claim — had never been tested on a feature set that is
+uniformly one node's promiscuous view. This step runs the first two: DCFM and Watchdog, 2,000
+simulations each, static and mobile, under canonical window order.
+
+### A. A NaN-handling fix in the pipeline, and a diagnosis that did not survive testing
+
+`NormalizedRoutingLoad` is `olsrFrames / dataFrames`. When the listener hears no IPv4 frame at all
+in a 40 s window the ratio is undefined and the harness writes `NaN` — the schema's deliberate
+signal for *not measurable*. `load_dataset()` was calling `X.fillna(0.0)`, which is exactly the
+conflation the schema exists to prevent: a measured zero and an unmeasurable window became the
+same number.
+
+**The fix, and where it had to go.** A `dropna` was added in `load_dataset()` immediately after the
+features/labels merge, before `resolve_features()`, and it drops **all four windows of any run**
+that has an undefined value, not the single window:
+
+- *Rows, not the column.* A `NaN` there means the listener heard nothing that window, so all 17
+  values in the row are meaningless — the window is broken, not the feature.
+- *The whole run.* Every `run_id` emits exactly four windows, one per scenario. Dropping one leaves
+  the run represented on only one side of the label, a small but non-random bias. Dropping the run
+  preserves the four-windows-per-run invariant the rest of the pipeline assumes.
+- *Before the CV split, never inside a fold.* An in-fold drop makes the sample size vary across
+  folds, which breaks the constant-*n* assumption of the **Nadeau-Bengio** correction and distorts
+  the confidence intervals rather than merely shifting the point estimate.
+- *Keyed on the merged frame, not on `X`.* The row set is then identical whether or not the column
+  is in the selected feature set, so a `--drop-features NormalizedRoutingLoad` ablation stays
+  comparable with the full run.
+- A diagnostic line reports `dropped N runs (M windows) with undefined NormalizedRoutingLoad`, so
+  the removal is never silent.
+
+**Removing the `fillna` alone would have changed nothing.** There are **three** `fillna` sites in
+the file. The two later ones sit at the end of `engineer_features()` and run unconditionally; they
+guard against `inf` produced by cubes of large values, which is a legitimate and unrelated job.
+Deleting only the first would have let the `NaN` survive a few lines and be filled downstream. The
+first site was therefore **kept** as a backstop and made to print a warning naming any column it
+touches. [VERIFIED — all three sites read from source]
+
+**A predicted side effect that does not exist.** The working hypothesis was that a single `NaN`
+also suppresses two engineered columns: the transform stage guards with `if (col >= 0).all()`, and
+`NaN >= 0` is `False` in Python, so `log1p_NormalizedRoutingLoad` and `sqrt_NormalizedRoutingLoad`
+would silently fail to be created and the matrix would come out **85 columns instead of 87**. The
+claim was tested by running the *unpatched* pipeline against a synthetic 17-feature dataset carrying
+one undefined value: it produced **87** columns, with both transforms present. The reason is
+ordering — `fillna` sits in `load_dataset()` and `engineer_features()` is called after it, so the
+`NaN` is already a zero by the time the guard runs. **The 85-column path is unreachable in this
+code.** [VERIFIED — executed against both the patched and unpatched files]
+
+Two consequences follow. First, an earlier inference that static and mobile results were not
+comparable because they had been fitted over different feature spaces is **withdrawn**: both were
+87. Second, a matrix of 85 *is* reachable by a different route — a single **negative** value in any
+base feature suppresses that feature's `log1p_` and `sqrt_` pair, reproduced on demand in the same
+harness. Auditing `-> N total` remains worthwhile; the suspect is a negative value, not a `NaN`.
+[VERIFIED — reproduced]
+
+The patch is a strict no-op on `NaN`-free data — feature matrix and column list compare equal — and
+both campaigns below turned out to contain no `NaN` at all, so it changed nothing in this step's
+numbers. It was merged with an unrelated remote change (the flag-gated transfer/LODO section of
+[Step 35](#step-35), which had reached the ML repository in the meantime); `folds.csv` from a
+re-run of DCFM/static after the merge is identical to the pre-merge file in all nine metric
+columns, differing only in per-fold wall-clock. [VERIFIED]
+
+### B. Four datasets: DCFM and Watchdog, 2,000 runs each, static and mobile
+
+Generated with {ref("run_simulations.sh")} at `-j 3`, canonical window order, into
+`~/dataset_paper/<defense>/Pilot2k/{{static,mobile}}` — 50 nodes, 750×1000 m, `bHighRange=false`,
+2 attackers, `spoofCount=5`, `attackerJitter=25`.
+
+| | runs | windows | crashes | `phy_trace_available` | `NaN` |
+|---|---:|---:|---:|---|---|
+| DCFM static / mobile | 2002 / 2002 | 8008 / 8008 | 0 / 0 | 1 in every run | none |
+| Watchdog static / mobile | 2001 / 2001 | 8004 / 8004 | 0 / 0 | 1 in every run | none |
+
+All four trees pass the full integrity gate: `windows = runs × 4` exactly, zero empty cells, zero
+non-numeric values, zero duplicates on `(run_id, scenario)` and `(run_id, window_start)`, no run
+missing a scenario, and `runs.csv` / `windows_features.csv` / `windows_labels.csv` /
+`windows_oracle.csv` agreeing on the `run_id` set. Config columns are constant across every run:
+`listener_node=2`, `random_window_order=0`, `slot0_scenario=baseline`, `harness_version=3.0.0`,
+`header_version=8`. The listener attached in every log. [VERIFIED]
+
+**The runner's acceptance filter is defense-independent.** Log files outnumber accepted runs by
+2.0405 (Watchdog static) vs 2.0400 (DCFM static), and 2.9595 (Watchdog mobile) vs 2.9585 (DCFM
+mobile) — identical to three decimals, i.e. 51% of static and 66% of mobile attempts are discarded
+in both. Whatever the rejection criterion is, it does not depend on which defense is loaded, so the
+two datasets are conditioned identically and a cross-defense comparison between them is sound.
+[VERIFIED] What the criterion *is* remains unaudited; if it correlates with connectivity it
+conditions both datasets on something PDR-adjacent. [HYPOTHESIS]
+
+### C. Efficacy — how much of the attack's damage each defense gives back
+
+Mean `pdr_percent` from `windows_oracle.csv`, over 2,001–2,002 windows per cell. The four
+scenarios are the four measurement windows of every run: `baseline` (no attack, no defense),
+`attack_only` (attack, no defense), `defense_only` (defense, no attack) and `defense_vs_attack`
+(both).
+
+**Watchdog — mean PDR (%)**
+
+| Scenario | static | mobile |
+|---|---:|---:|
+| `baseline` | 100.00 | 77.45 |
+| `attack_only` | 73.81 | 58.18 |
+| `defense_only` | 100.00 | 75.92 |
+| `defense_vs_attack` | 87.04 | 63.36 |
+
+**DCFM — mean PDR (%)**
+
+| Scenario | static | mobile |
+|---|---:|---:|
+| `baseline` | 100.00 | 77.43 |
+| `attack_only` | 73.82 | 58.19 |
+| `defense_only` | 83.21 | 62.11 |
+| `defense_vs_attack` | 81.68 | 57.70 |
+
+**Derived quantities**
+
+| | Watchdog static | Watchdog mobile | DCFM static | DCFM mobile |
+|---|---:|---:|---:|---:|
+| attack damage (`attack_only` − `baseline`) | −26.19 pp | −19.27 pp | −26.18 pp | −19.24 pp |
+| defense recovery (`defense_vs_attack` − `attack_only`) | +13.23 pp | +5.18 pp | +7.86 pp | −0.49 pp |
+| **recovery rate** | **50.5%** | **26.9%** | **30.0%** | **−2.6%** |
+| cost with no attack (`defense_only` − `baseline`) | **0.00 pp** | −1.53 pp | −16.79 pp | −15.32 pp |
+| mean `false_alarm_rate` (`defense_vs_attack`) | 0.54% | 4.86% | 86.60% | 92.25% |
+| paired within-run: helped / hurt | 447 / 11 | 895 / 697 | 377 / 209 | 805 / 919 |
+
+The **recovery rate** is the headline efficacy number — the share of the PDR the attack destroyed
+that the defense gives back, `(defense_vs_attack − attack_only) / (baseline − attack_only)`.
+**Watchdog recovers 50.5% of the damage in a static network and 26.9% under mobility; DCFM
+recovers 30.0% static and −2.6% mobile.** Watchdog therefore gives back about 1.7× as much as
+DCFM in static, and is the only one of the two that helps at all when nodes move. [VERIFIED]
+
+**A negative recovery rate is not a rounding artefact.** DCFM/mobile ends at 57.70, *below* the
+58.19 of the undefended attacked network: the numerator `57.70 − 58.19` is negative while the
+denominator stays positive, so the defense returns −2.6% of the damage — it adds to it. The
+mechanism is visible one row up: `defense_only` is 62.11 against a `baseline` of 77.43, so DCFM
+costs 15.32 pp with no adversary present at all, and under attack that self-inflicted loss
+exceeds what it recovers. [VERIFIED]
+
+**The two attack-free rows validate the comparison.** `baseline` and `attack_only` are within
+0.02 pp between the two defenses in both regimes (100.00 vs 100.00 and 73.81 vs 73.82 static;
+77.45 vs 77.43 and 58.18 vs 58.19 mobile). The defense is off in both scenarios, so the agreement
+confirms the two campaigns were generated under identical conditions and are comparable.
+[VERIFIED]
+
+The paired row compares `defense_vs_attack` against `attack_only` **within the same run**, so
+topology and seed are held fixed; it is the stronger statistic.
+
+Sign tests on the paired differences: Watchdog static *z* = +20.4 (*p* ≈ 1e−116), Watchdog mobile
+*z* = +4.96 (*p* ≈ 8e−7), DCFM static *z* = +6.94 (*p* ≈ 4e−12), DCFM mobile *z* = −2.75
+(*p* = 0.0065). **DCFM under mobility hurts significantly more runs than it helps.** [VERIFIED]
+
+The **cost with no attack** column is the sharpest separator and is read from the `defense_only`
+scenario, where the defense runs against no adversary. Watchdog/static is 100.00 against a baseline
+of 100.00 — exactly free. DCFM pays about 16 points in both regimes, which its false-alarm rate
+explains mechanically: it accumulates roughly 83 (static) to 116 (mobile) false accusations per
+window against 2–8 true ones, and accusations of innocent nodes break routes. Note that
+`false_detections` exceeds the number of innocent nodes in the network, confirming that the column
+counts accusation events summed over every blacklist, not distinct nodes — the unit-of-analysis
+problem [Step 41](#step-41) flagged. [VERIFIED]
+
+### D. Detectability — the tradeoff, measured
+
+`defense_detection_v4.py`, `--feature-set all`, one model per mobility regime, 2×5
+`StratifiedGroupKFold` by `run_id`. Every run reported `17 base -> 87 total`, `leakage guard OK`
+and `Dummy AUC=0.5000`.
+
+| | best model | ROC-AUC | 95% CI | balanced accuracy |
+|---|---|---:|---|---:|
+| DCFM static | Stacking | 0.9598 | [0.9532, 0.9664] | 0.9161 |
+| DCFM mobile | LightGBM | 0.9732 | [0.9665, 0.9799] | 0.9296 |
+| **Watchdog static** | ExtraTrees | **0.5945** | [0.5880, 0.6009] | 0.5630 |
+| **Watchdog mobile** | Ridge | **0.5963** | [0.5827, 0.6099] | 0.5646 |
+
+**This is the detectability ↔ efficacy tradeoff, on one schema, across two defenses and two
+mobility regimes.** The defense that recovers more PDR (50.5% vs 30.0%), costs nothing when idle
+(0.00 vs −16.79 pp) and almost never accuses an innocent node (0.54% vs 86.60% FAR) is the one a
+passive listener can barely detect. [VERIFIED]
+
+Three qualifications belong with that headline. **0.59 is a weak signal, not a working detector** —
+balanced accuracy 0.563, MCC 0.13, and F1 0.485, which is *below* the majority-vote `Dummy`'s
+0.667. **The reported CI is for the model selected as best out of thirteen** and is not corrected
+for that selection, so it is mildly optimistic. And **Watchdog shows no static/mobile difference**
+(0.5945 vs 0.5963, CIs overlapping almost entirely) even though its efficacy differs sharply
+between the regimes — so the tradeoff holds *between* defenses here, not *within* Watchdog. DCFM's
+own CIs do separate (mobile above static), reproducing on the 17-schema the mobility inversion
+that Open Question 3 tracks. [VERIFIED]
+
+**Grouped permutation test on Watchdog, both regimes.** Labels shuffled within each run,
+200 permutations:
+
+| | observed AUC | null | distance | *p* |
+|---|---:|---|---:|---|
+| Watchdog static | 0.5969 | 0.5001 ± 0.0072 | 13.4 σ | < 0.005 |
+| Watchdog mobile | 0.5979 | 0.5000 ± 0.0084 | 11.7 σ | < 0.005 |
+
+Zero of 200 permutations reached the observed value in either regime, so *p* = 0.004975 is the
+**floor** `(1+0)/201` and must be reported as *p* < 0.005, not as a measurement. The null
+distributions centre on 0.5001 and 0.5000, an independent confirmation that the run-level grouping
+blocks leakage — a leaky split would place the null above 0.5. The weak signal is real. [VERIFIED]
+
+The null spread also supplies a noise scale, and it retires a suspicion raised in passing: the gap
+between the best and worst non-trivial model is 0.0474 in static and 0.0439 in mobile, roughly 6.6
+and 5.2 null standard deviations, so the model ranking is **not** noise. That makes the **rank
+inversion between regimes** a finding rather than an artefact — tree ensembles lead in static
+(ExtraTrees 0.5945, Ridge 0.5471) and linear models lead in mobile (Ridge 0.5963, ExtraTrees
+0.5524). Watchdog's residual signature appears non-linear under a static topology and linear under
+mobility. [HYPOTHESIS — the ordering is measured; the mechanism is not]
+
+One feature note with a methodological edge: the top importance for Watchdog/static is
+`RoutingOverheadBytesRatio`, precisely the column the script's default 32-metric preset drops. Its
+intersection with the 17-observable schema is only 16 names, so `--feature-set all` is mandatory on
+this schema — and here it preserved the leading feature. `TDR`, a composite, tops three of the four
+importance lists; it is a derived column, not an observable, and should be described as such.
+[VERIFIED]
+
+### E. Three defects in the oracle detection columns
+
+`detection_percent_in_range` returns values above 100% in **1,004** DCFM/mobile windows — 959 of
+them, or 47.9%, in `defense_vs_attack`. This is the [Step 41](#step-41) numerator/denominator
+mismatch behaving exactly as predicted for a control-plane defense: DCFM detects contradictions in
+TC messages, which flood the whole network, so accusations arrive from nodes at any distance while
+the denominator counts one-hop neighbours only. The column is **not usable for DCFM**, and the
+excess is a property of the metric rather than a fault in the data. [VERIFIED]
+
+Two further defects are new to this step and are **not** explained by the five failure modes
+recorded in [Step 41](#step-41):
+
+- **`>100%` without mobility and without propagation.** Watchdog/static produced 5 such windows
+  (and the earlier `Temporary_Experiment_1` static tree produced 4). Watchdog is a local-observation
+  defense with no alert distribution, and a static topology removes the sampling-drift path
+  entirely. The most economical explanation is that actual reception is not identical to the 190 m
+  range threshold from which `defenders_in_range` is derived, so a node just outside the nominal
+  radius still overhears and accuses. [HYPOTHESIS — the counts are verified and reproduce across two
+  independent campaigns; the cause is inferred]
+- **Watchdog recovers PDR while its detection columns read near zero.** `true_detections` averages
+  0.38 with a median of 0 in `defense_vs_attack`/static, yet PDR recovers 13.23 pp and 447 runs
+  improve against 11 that worsen. The columns are read from each node's blacklist **at window
+  close**; if Watchdog expires blacklist entries, a detection made early in the 100 s slot is gone
+  by the time the sample is taken, and the metric measures instantaneous state rather than
+  detections over the window. This matters for reporting — the two figures otherwise appear to
+  contradict each other. [HYPOTHESIS — the numbers are verified; whether the Watchdog blacklist
+  expires has not been traced in source]
+
+### Sources
+- Pipeline: {refml("defense_detection_v4.py")} — the `dropna` in `load_dataset()`, the retained
+  `fillna` backstops, and the merged transfer section
+- Harnesses: {ref("scratch/olsr-dcfm-eval-mitigation.cc")},
+  {ref("scratch/olsr-watchdog-eval-mitigation.cc")}; collector {ref("scratch/olsr_window_features.h")}
+  (schema v6, 17 columns); runner {ref("run_simulations.sh")}
+- Datasets (machine-local, not in either repository):
+  `~/dataset_paper/dcfm/Pilot2k/{{static,mobile}}` and `~/dataset_paper/watchdog/Pilot2k/{{static,mobile}}`
+- Outputs: {refml("scripts_for_17/results_dcfm_2000")} and {refml("scripts_for_17/results_watchdog_2000")},
+  each with `static/` + `mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`,
+  `summary.tex`) and the tee'd stage logs; Watchdog additionally has `static_perm/` + `mobile_perm/`
+- Antecedents: [Step 41](#step-41) (the 17-observable schema and the five oracle failure modes);
+  [Step 24](#step-24) (the tradeoff thesis as first stated); [Step 39](#step-39) (the Watchdog
+  realignment these runs exercise)
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -5573,7 +5841,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 
 | File | Role |
 |---|---|
-| {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them |
+| {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them. Since [Step 42](#step-42) `load_dataset()` also **drops every window of any run with an undefined `NormalizedRoutingLoad`**, before the CV split, and reports the count; the two `fillna` calls at the end of `engineer_features()` are retained as `inf` guards |
 
 *Key scripts in `scripts_for_all_128/` (runs 1–3, Step 34, the Step-36 cross-defense tree, and the Step-37 un-normalised replication)*
 
@@ -5629,6 +5897,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `{S35}/` (**[Step 37](#step-37)** un-normalised DCFM) | `results_run_nonorm_27/` and `results_run_nonorm_32/`, each with `dcfm_static/` + `dcfm_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`scale_comparison_*.csv`, `univariate_by_class_*.csv`, `denominator_direct_*.csv`, `denominator_recovered_*.csv`, `pairing_*.json`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `config_parity.csv`) |
 | `{DML}/results/30_schema33/paper_v4/transfer/` | **[Step 35](#step-35) generalisation experiments** (written under the v4 default results root, not under `scripts_for_all_128/`): `transfer_mobility.csv`, `transfer_defense_<mobility>.csv`, `lodo_<mobility>.csv`, `transfer_config.json` (reproduction manifest), and `figures/` (`transfer_mobility_<defense>.png`, `transfer_defense_<mobility>.png`, `lodo_<mobility>.png`) |
 | `{S36}/` (**[Step 38](#step-38)** one-flow un-normalised DCFM) | `33_features/`, `32_features/`, `27_features/`, each with `results_static/` + `results_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`integrity.csv`, `control_group.csv`, `pairing.csv`, `degeneracy_univariate.csv`, `effective_dimension.csv`, `baseline_provenance.csv`, `probe_1ch.log`, `probe_3ch.log`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `comparison_matrix.csv`, `config_parity.csv`, `importance_top.csv`, `acc_prev_vs_cur.csv`, `acc_prev_vs_cur_tables.txt`, `whatsapp_tables.txt`); `logs/` |
+| `scripts_for_17/results_dcfm_2000/`, `scripts_for_17/results_watchdog_2000/` (**[Step 42](#step-42)** — the first 17-observable campaigns) | One folder per campaign, each with `static/` + `mobile/` holding the standard v4 leaf outputs (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`; `final_model.pkl` and `figures/` are git-ignored), plus the tee’d stage logs `static_log.txt` / `mobile_log.txt`. `results_watchdog_2000/` additionally holds `static_perm/` + `mobile_perm/` — the 200-permutation grouped null for each regime. `results_watchdog_1000/` is the earlier, smaller Watchdog campaign on the same schema |
 
 ### Reproduction environment
 ```bash
@@ -5647,8 +5916,10 @@ conda install -c conda-forge "xgboost>=2.1" -y     # <2.1 breaks calibration
 - Scripts transferred from Windows need `sed -i 's/\\r$//' <file>` (CRLF → LF) under WSL.
 - **Every run must print `leakage guard OK` in stage [2] and `Dummy AUC=0.5000` in stage
   [3].** Deviation indicates a protocol fault.
-- **Confirm stage [1] reports the expected base-feature count** (32 / 29 / 26 / 76)
-  before trusting any run.
+- **Confirm stage [1] reports the expected base-feature count** (32 / 29 / 26 / 76; **17** on
+  the single-listener schema of [Step 41](#step-41), which must engineer to **87** total) before
+  trusting any run. On the 17-schema `--feature-set all` is mandatory: the default `metrics32`
+  preset intersects it in only 16 names and silently drops `RoutingOverheadBytesRatio`.
 - Long runs should execute inside `tmux` to survive disconnection.
 """)
 

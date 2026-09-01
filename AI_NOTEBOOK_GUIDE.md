@@ -96,7 +96,7 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 41 steps)
+## 4. Notebook structure (7 parts, 42 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
@@ -106,7 +106,7 @@ Chronological. Each step is one `md(f"...")` cell.
 | **II — Defense Implementation** | 7–19 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
 | **III — ML Campaign 1 (`defense_ml`)** | 20–25 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
 | **IV — The Transition** | 26 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–41 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed; **Steps 39–40 — two defense realignments to their source papers** (Watchdog → Baiad 2014/2016 + Marti 2000; TRUST → Adnane 2013), each with an oracle-column sampling defect found in the process. They are not ML steps and sit at the end of Part V only because that is where the chronology put them; **Step 41 — the single-listener rebuild**, which replaces the 128-feature schema with the supervisor's 17-observable LISTENER spec and applies four changesets (TRF-006 hop gate removed, WIN-003 conditional prologue, SL-2 single vantage, SL-3 new schema) to all four harnesses, unifies the oracle table across them, and records three defects found on the way. Also not an ML step |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–41 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed; **Steps 39–40 — two defense realignments to their source papers** (Watchdog → Baiad 2014/2016 + Marti 2000; TRUST → Adnane 2013), each with an oracle-column sampling defect found in the process. They are not ML steps and sit at the end of Part V only because that is where the chronology put them; **Step 41 — the single-listener rebuild**, which replaces the 128-feature schema with the supervisor's 17-observable LISTENER spec and applies four changesets (TRF-006 hop gate removed, WIN-003 conditional prologue, SL-2 single vantage, SL-3 new schema) to all four harnesses, unifies the oracle table across them, and records three defects found on the way. Also not an ML step; **Step 42 — the first campaigns on that schema**: a NaN-handling fix in `load_dataset()` (run-level `dropna` on `NormalizedRoutingLoad`, before the CV split), 2,000-run DCFM and Watchdog datasets in both mobility regimes, and the detectability↔efficacy tradeoff measured end to end (DCFM AUC 0.96 at 87% FAR and −16.8 pp idle cost; Watchdog AUC 0.59 at 0.5% FAR and zero idle cost), with a 200-permutation grouped null on both Watchdog regimes |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -247,8 +247,8 @@ print('steps sequential 1..N:', steps == [str(i) for i in range(1, len(steps)+1)
 print('stray "{" leaks (f-string bugs):', body.count('{ref(') + body.count('{refml('))
 ```
 
-Expected (as of Step 41): `cells: 62`, `BROKEN internal links: []`,
-`steps sequential 1..N: True` with `N = 41`, `stray "{" leaks: 1`.
+Expected (as of Step 42): `cells: 63`, `BROKEN internal links: []`,
+`steps sequential 1..N: True` with `N = 42`, `stray "{" leaks: 1`.
 The single known leak is a pre-existing one — a `{ref("run_simulations.sh")}` inside a plain
 `md("...")` cell that should be `md(f"...")`. It is harmless (it renders literally) and unrelated
 to recent edits; leave it unless you are specifically fixing it. If the count rises **above 1**,
@@ -304,6 +304,20 @@ Each step folder holds both its scripts and its result tree, so a step is self-c
 | `step_36_dcfm_non_normalized_1ch_18msgs/` | Step 38 | `probe_1ch.py`, `preflight.py`, `run_all.sh`, `compare_1ch_vs_3ch.py`, `compare_accuracy_prev_vs_cur.py`, `PREDICTIONS.md`; `33_features/`, `32_features/`, `27_features/` (each with its `features_NN.txt`, `results_static/`, `results_mobile/`); `preflight_report/`, `comparison/`, `logs/` |
 | `step31_normalization_test/` | — | Ad-hoc normalisation-leak probe (`test_normalization_leakage.py`, `step31_run.log` at the tree root). Not tied to a notebook step; predates the per-step reorganisation |
 | `_tools/` | — | `table.py` (quick AUC/MCC/TPR table for any results dir) |
+
+### 7.2 Campaign-3 layout — `scripts_for_17/` (ML repo)
+
+New with Step 42. A **flat** tree, not per-step: one folder per campaign run on the 17-observable schema of Step 41, each with `static/` and `mobile/` sub-folders holding the standard v4 leaf outputs, plus the tee’d `static_log.txt` / `mobile_log.txt`.
+
+| Folder | Notebook step | Contents |
+|---|---|---|
+| `results_dcfm_2000/` | Step 42 | DCFM, 2002 runs per regime |
+| `results_watchdog_2000/` | Step 42 | Watchdog, 2001 runs per regime; also `static_perm/` + `mobile_perm/` (200-permutation grouped null) |
+| `results_watchdog_1000/` | Step 42 | Earlier, smaller Watchdog campaign on the same schema |
+
+Two conventions differ from `scripts_for_all_128/`. There are **no scripts in the tree** — the runs are plain `defense_detection_v4.py` invocations, so the commands live in the step text and the logs, not in a `run_*.sh`. And the datasets are **machine-local** (`~/dataset_paper/<defense>/<campaign>/{static,mobile}`), reached via an explicit `--data-root`; the v4 `DATASETS` registry still points at the old 128-feature paths and must not be relied on for these runs.
+
+Three flags are mandatory on this schema: `--feature-set all` (the default `metrics32` preset intersects the 17 names in only 16 and silently drops `RoutingOverheadBytesRatio`), an explicit `--data-root`, and a **separate `--results-dir` per mobility regime** — both write the same filenames and would otherwise overwrite each other.
 
 Conventions for this tree:
 
