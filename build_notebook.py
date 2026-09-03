@@ -280,25 +280,26 @@ md("""
 41. [The single-listener rebuild: a 17-observable schema and four harness changesets](#step-41) — 2026-08-30
 42. [The first 17-observable campaigns: a NaN fix, 2,000-run DCFM and Watchdog datasets, and the tradeoff measured](#step-42) — 2026-09-01
 43. [FPNT and TRUST on the 17-observable schema: a byte-padding artifact, and a defense that never wakes up](#step-43) — 2026-09-01
+44. [Porting the supervisor's K-selection chain: an anchor derived per defense, and the 17th feature shown redundant](#step-44) — 2026-09-02
 
 **Part VI — Synthesis**
 
-44. [Open questions](#open-questions)
-45. [Planned full-scale campaign](#full-campaign)
+45. [Open questions](#open-questions)
+46. [Planned full-scale campaign](#full-campaign)
 
 **Part VII — Annotated Source-File Guide**
 
-46. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
-47. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
-48. [`scratch/` — feature schema and simulations](#guide-scratch)
-49. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
-50. [Repository-root batch scripts](#guide-scripts)
-51. [Reproducing the dataset — the exact commands](#guide-repro)
+47. [How the four windows are measured — the `Enabled` cold-start](#guide-coldstart)
+48. [`src/olsr/model/` — protocol core, interface, defenses](#guide-model)
+49. [`scratch/` — feature schema and simulations](#guide-scratch)
+50. [`files for all defenses/` — the per-defense swap sets](#guide-swap)
+51. [Repository-root batch scripts](#guide-scripts)
+52. [Reproducing the dataset — the exact commands](#guide-repro)
 
 **Reference**
 
-52. [References](#references)
-53. [File index](#file-index)
+53. [References](#references)
+54. [File index](#file-index)
 """)
 
 # ==========================================================================
@@ -5509,6 +5510,378 @@ were re-run: ROC-AUC identical to six decimals, largest deviation across 52 mode
   sections these runs leave disabled)
 """)
 
+md(f"""
+<a id="step-44" name="step-44"></a>
+## Step 44 — Porting the supervisor's K-selection chain: an anchor derived per defense, and the 17th feature shown redundant
+**Date:** 2026-09-01 → 2026-09-02
+
+### Motivation — the reuse claim has to be an artifact, not an assertion
+
+The supervisor's own detection study runs three stages *after* the basic model: a
+feature-importance sensitivity analysis that derives a stable *anchor* feature set, a **K-sweep**
+that asks how few features suffice when measured by cross-domain transfer, and a selection rule
+that says where on that curve to stop. His study has one defense; this project has four. The paper
+this project is heading for claims it **builds on** his pipeline and reuses it, and a claim of that
+shape is only worth as much as the evidence that the code really is his.
+
+So the governing rule for the whole session was: **nothing may change a computed value.** Every
+estimator, split, metric, ranking rule and selection rule stays as written. Docstrings, dead
+environment-specific branches, CLI shape, output paths and the thread budget are fair game;
+anything that could move a number is not. Adaptation was confined to the data loader and to the
+constants that were only constants because he had a single defense.
+
+### A. The chain, and the stage that did not exist
+
+| Stage | Question it answers | Status |
+|---|---|---|
+| 1 · `hp_search_v4.py` | What are the best hyperparameters per model, per defense, per mobility? | **written from scratch** |
+| 2 · `feature_importance_sensitivity_v4.py` | Which features are important in **both** mobility arms — the *anchor* set? | ported (1,241 → 1,265 lines) |
+| 3 · `k_sweep_universal4_v4.py` | How few features suffice, measured by cross-domain transfer? | ported (518 → 775 lines) |
+| 4 · `select_optimal_k_v4.py` | Where on that curve to stop | ported (136 → 249 lines) |
+
+**Stage 1 had to be invented because this project had nothing to put in its place.** All three
+downstream stages open a tuned-parameter store with `load_best_params()`; in the supervisor's
+project that store comes from a separate `unified_hp_search` stage this project never had. The
+only per-arm store here was `model_params.json` — a dump of the hard-coded zoo defaults in
+`build_models()`, and therefore **identical for every defense**. The `catboost_tuned` label the old
+sweep printed was consequently not true of anything. Stage 1 makes it true: `RandomizedSearchCV`,
+25 candidates per model, 3-fold `StratifiedGroupKFold` grouped by `run_id`, scoring ROC-AUC, with
+the same leakage guard as the rest of the pipeline. [VERIFIED]
+
+Three implementation details of stage 1 are forced by the downstream code and are worth recording,
+because each of them silently produces nothing if got wrong:
+
+- **The search grids only contain parameters the downstream whitelists read back.** The
+  supervisor's `_filter_xgb_params` keeps nine XGBoost keys and `_filter_catboost_params` seven
+  CatBoost keys; anything tuned outside those is discarded when the store is loaded. Every range in
+  the search space sits inside one of those whitelists.
+- **The search fits a `Pipeline([StandardScaler, clf])` but pickles the classifier alone.** Scaling
+  must be inside the CV to stay fold-safe, but the downstream calls `get_params()` and filters on
+  *classifier-level* keys — a Pipeline returns `clf__`-prefixed keys and every filter comes back
+  empty.
+- **The store is written with plain `pickle.dump`, deliberately.** The two downstream scripts
+  disagree on how they open it: stage 2 uses `pickle.load`, stage 3 uses `joblib.load`. A
+  `joblib.dump` payload is not readable by `pickle.load`; a plain pickle is readable by both.
+  Writing one lets every downstream loader stay exactly as he wrote it. [VERIFIED]
+
+### B. The first attempt was invalid, and the cause was a silent fallback
+
+An earlier adaptation of the sweep ran once on FPNT-17 (24 min) and was later reverted. Its curve
+was flat at accuracy ≈ 0.70 for K = 1…4 and only jumped to 0.89 at K = 5.
+
+The reason is that it used the supervisor's **hard-coded** anchor — `AverageAdvertisedLinksPerTCMessage`,
+`AverageMprCount`, `DataPacketRate`, `FlowThroughputStd` — which was derived from **his** 33-metric
+arm, not from this project's data. On LISTENER-17 data four of the first five slots were therefore
+spent on another arm's features, and the curve only moved when `AvgTxPacketSize` — the top-ranked
+feature in *both* arms here — was finally admitted at K = 5. The supervisor had warned about
+exactly this: without `--universal-set`, the script falls back to its four built-in features.
+[VERIFIED]
+
+**The deeper cause is documented in his own source.** His script wrote the derived sets' member
+*counts* and a recommended K, but never the member **names** — a comment in the file records that
+they "were never written anywhere", so the universal set had to be extracted by hand. That hand
+step is precisely how the wrong anchor got in. [VERIFIED — source comment]
+
+This is the second silent-fallback defect in two steps, and the pattern is now explicit policy in
+this pipeline: **a default that quietly substitutes something plausible is worse than an error.**
+
+### C. Two substantive corrections, both of which the original design invited
+
+1. **The anchor is derived per defense, and is a hard error if missing.** `--universal-set` now
+   defaults to the artifact stage 2 produces *for that defense*, and there is **no built-in
+   fallback** — the module constant is initialised empty. Stage 2 gained one new function whose only
+   job is to write `universal_set.txt` (one feature name per line, with a provenance header), plus
+   `universal_set_provenance.json` recording which `(method, variant, K, threshold)` produced it and
+   `universal_set_members.csv` listing every combination for inspection. Which row becomes the
+   anchor is chosen by `--emit-universal-set METHOD:VARIANT:K`, defaulting to
+   `catboost_pvc:strict:9` — the recipe that produced the supervisor's own four-feature set,
+   reproduced on this project's data. It runs **before** the `--skip-evaluation` early return, so a
+   derivation-only run still produces it. [VERIFIED]
+
+2. **The evaluation classifier is per-arm.** `--classifier auto` reads
+   `paper_v4/<defense>_<mobility>/summary.csv` and uses that arm's best model. Across these four
+   defenses the winner genuinely differs — Ridge for FPNT-17, ExtraTrees / LogisticRegression for
+   TRUST-17 static / mobile, CatBoost for DCFM — so a fixed choice would handicap three of them.
+   The supervisor had already parameterised the *hyperparameters* per arm; this extends the same
+   axis to the model family, and `--classifier catboost` restores his fixed choice for a direct
+   comparison. Non-probabilistic families (Ridge, SVM-RBF) expose no `predict_proba` and are
+   calibrated on the source **validation** partition — the one the decision threshold is already
+   swept on, so no additional data is consumed. [VERIFIED]
+
+**One design flaw was deliberately preserved.** In the sweep's output the `S_in_domain` row and the
+`S_to_M` row come from the *same* fitted model, read through two different accuracy fields, so they
+are not statistically independent. That is the supervisor's design; it is documented in the
+docstring rather than fixed, because fixing it would alter reported numbers and break the reuse
+claim. Anyone quoting an in-domain and a cross-domain figure from the same row should know they are
+not two measurements. [VERIFIED]
+
+### D. Making the pipeline run on either collaborator's machine
+
+The four defenses are generated and stored on **different machines** — one collaborator holds FPNT
+and TRUST, the other DCFM and Watchdog — and both run the same code. The dataset registry had
+absolute paths baked in, including one under `~/Downloads`; it now stores **layout** (a per-defense
+subdirectory plus static and mobile leaf names, all relative) and resolves a root at runtime with
+the precedence `--data-root` (one exact condition directory) → `--dataset-root` → environment
+variable → built-in defaults.
+
+**An explicit root is authoritative:** when given it is the *only* base searched, and a wrong path
+raises `FileNotFoundError` naming every path tried. `--list-data` reports which arms the current
+machine can reach, and the driver's `all` target runs only those — so each collaborator runs one
+identical command. Silent fallback is how the anchor defect of §B happened, and the same trap is
+deliberately not reintroduced for data. [VERIFIED]
+
+Two further defects were found and fixed while doing it:
+
+- **`--universal-set` could be anchored on a directory name.** The original parser treated a
+  non-existent path containing no separator as a one-element feature list, so a whole sweep could
+  have run anchored on a "feature" named after a folder. It now checks both separators and the
+  extension and refuses a missing path outright.
+- **`--data-root` with `--mobility both` or `--defense all` silently loaded one directory for every
+  arm.** Static and mobile then trained on identical data and the cross-domain comparison the whole
+  K-sweep rests on became vacuous. The combination is now refused. [VERIFIED]
+
+**A hard core ceiling of 8, and a candidate cause for the two power-offs.** `MAX_JOBS` previously
+defaulted to `cpu_count() // 2`, which is **10** on the 20-core machine in question — and that is
+the setting under which the machine hard-powered off twice during the [Step 43](#step-43) model
+runs. The ceiling is now enforced in the shared module every stage imports, with the BLAS thread
+variables pinned alongside it, so no entry point can exceed it; the environment may lower it but
+never raise it. [Step 43](#step-43) recorded those power-offs as "no BugCheck, no dump, no WHEA
+event, which points at a power or thermal cut"; the parallelism setting is now a concrete candidate
+for what drove it. [HYPOTHESIS — the correlation is exact and the ceiling has held since, but no
+controlled reproduction was attempted, and it should not be: the test is a deliberate crash]
+
+### E. FPNT-17 through all four stages
+
+Four stages, 8,020 static and 8,040 mobile windows, 8 cores, **13 minutes** end to end.
+
+**Stage 1 — tuned hyperparameters.** Best cross-validated ROC-AUC per model:
+
+| Model | static (16f) | mobile (16f) | static (17f) | mobile (17f) | winning params |
+|---|---:|---:|---:|---:|---|
+| XGBoost | 0.9864 | 0.9907 | 0.9870 | 0.9911 | depth 11, 1000 trees, lr 0.05 |
+| CatBoost | 0.9862 | 0.9906 | 0.9869 | 0.9909 | depth 6/4, 500 iterations |
+| **Ridge** | **0.9871** | **0.9915** | **0.9870** | **0.9916** | **alpha = 5.0** |
+
+**A tuned linear model with one knob beats two tuned gradient-boosting ensembles.** When that
+happens the separation is near-linear, not a complex pattern — and it is independent corroboration
+of [Step 43](#step-43)'s finding, arrived at from the opposite direction. That step showed the
+signal *is* byte padding by ablating it away (0.99 → 0.60); this one shows the signal *has the
+shape* of a padding threshold, by tuning thirteen model families and finding that the simplest one
+wins. `--classifier auto` therefore selected Ridge for both directions of the sweep. [VERIFIED]
+
+**Stage 2 — the anchor set.** Recipe `catboost_pvc : strict : K=9`, stability threshold 0.8,
+20 bootstrap seeds; a feature enters only if it is in the top-9 of **both** arms in at least 16 of
+20 seeds. Six features qualify, **identical in the 16- and 17-feature runs**:
+
+`AvgFlowThroughput`, `AvgTxBytesPerFlow`, `AvgTxPacketSize`, `AvgTxPacketsPerFlow`,
+`FlowThroughputStd`, `Throughput`
+
+**All six are traffic size/rate metrics. Not one control-plane metric qualifies.** This is FPNT's
+signature in its cleanest form, and it is the same five byte-derived features [Step 43](#step-43)
+ablated, plus `AvgTxPacketsPerFlow`. Two independent selection procedures — a Cohen's-*d* ranking
+on one side, a bootstrap-stability intersection on the other — return the same set. [VERIFIED]
+
+**Stage 3 — the K-sweep.** 20 seeds, nested 60/20/20 `GroupShuffleSplit` by `run_id`,
+`StandardScaler` fitted on the source-train partition only, threshold swept on source validation,
+both transfer directions:
+
+| K | S→S | M→M | S→M | M→S | asym. | feature entering |
+|---:|---:|---:|---:|---:|---:|---|
+| 1 | 0.7649 | 0.7542 | 0.7566 | 0.7649 | 0.0084 | `AvgTxPacketSize` |
+| 2 | 0.7753 | 0.7519 | 0.7588 | 0.7615 | 0.0027 | `AvgTxPacketsPerFlow` |
+| 3 | 0.8767 | 0.8611 | 0.8413 | 0.8611 | 0.0198 | `AvgTxBytesPerFlow` |
+| 4 | 0.8765 | 0.8612 | 0.8413 | 0.8612 | 0.0199 | `AvgFlowThroughput` |
+| 5 | 0.8858 | 0.8621 | 0.8428 | 0.8612 | 0.0184 | `FlowThroughputStd` |
+| 6 | 0.8843 | 0.8633 | 0.8417 | 0.8606 | 0.0189 | `Throughput` *(anchor ends)* |
+| 7 | 0.8919 | 0.9078 | 0.8802 | 0.8755 | 0.0047 | `TcMessageRate` |
+| 8 | 0.9325 | 0.9206 | 0.8492 | 0.8672 | 0.0180 | `AverageMprCount` |
+| 9 | 0.9441 | 0.9224 | 0.8617 | 0.8770 | 0.0153 | `NormalizedRoutingLoad` |
+| 10 | 0.9448 | 0.9535 | 0.9286 | 0.9156 | 0.0130 | `AverageAdvertisedLinksPerTCMessage` |
+| 11 | 0.9458 | 0.9517 | 0.9287 | 0.9167 | 0.0120 | `AverageHopCount` |
+| 12 | 0.9455 | 0.9580 | 0.9128 | 0.9316 | 0.0188 | `AvgFlowDuration` |
+| **13** | **0.9461** | **0.9576** | **0.9287** | **0.9313** | **0.0026** | **`FlowDurationStd` ← chosen** |
+| 14 | 0.9493 | 0.9591 | 0.9179 | 0.9336 | 0.0157 | `DataPacketRate` |
+| 15 | 0.9493 | 0.9591 | 0.9179 | 0.9336 | 0.0157 | `MidMessageRate` |
+| 16 | 0.9493 | 0.9591 | 0.9179 | 0.9336 | 0.0157 | `HnaMessageRate` |
+
+Two jumps: **K = 3** (+0.09, the third byte feature) and **K = 10** (+0.06, the first control-plane
+feature that matters). The curve is exactly flat from K = 14 — `MidMessageRate` and
+`HnaMessageRate` are identically zero in this topology, as the collector documents, so the last two
+slots add literally nothing. That flat tail is a free integrity check on the whole sweep.
+[VERIFIED]
+
+**Stage 4 — optimal K.** The rule, byte-identical to the supervisor's: score(K) is the mean of the
+two cross-domain accuracies; the tolerance is one standard deviation at the peak; the choice is the
+**smallest** K within tolerance of the peak, ties broken by lower asymmetry. Peak 0.9300 at K = 13,
+tolerance 0.00503, threshold 0.92494 — K = 10 (0.9221), 11 (0.9227) and 12 (0.9222) all fall short,
+so **K = 13** is both the peak and the smallest passing K, at asymmetry **0.0026 — the lowest in
+the entire sweep**. [VERIFIED]
+
+**Thirteen of sixteen passively observable metrics give 93% cross-domain accuracy with near-zero
+direction asymmetry**, which is the sharper statement: the detector transfers between mobility
+regimes rather than being refitted for each. The 13 are the six anchor members plus `TcMessageRate`,
+`AverageMprCount`, `NormalizedRoutingLoad`, `AverageAdvertisedLinksPerTCMessage`, `AverageHopCount`,
+`AvgFlowDuration` and `FlowDurationStd`. [VERIFIED]
+
+**How stable is the intersection, really?** The bootstrap table under the anchor's own method
+(`catboost_pvc`) reads: at K = 1, **no** feature is jointly top-ranked in even 60% of the 20 seeds;
+at K = 2, **two** features clear thresholds 0.6 and 0.7 but only **one** clears 0.8. Since 0.8 is
+the operating threshold, the honest statement is that the cross-domain core is **one** feature at
+the recipe's own stability level, and two only if the bar is lowered — and three of the six methods
+(`perm_rf`, `rf_native`, `xgb_gain`) already find one stable feature at K = 1, so even the K = 1
+emptiness is a property of `catboost_pvc` rather than of the data.
+
+> **This corrects the session log**, which recorded the pair as stable "even at threshold 0.9". The
+> generated results document disagrees, and per the provenance rule the machine-written table wins
+> over the prose. Nothing downstream changes — the anchor is derived at K = 9, where all six methods
+> agree on 6–7 members — but the two-feature core must not be quoted at 0.9.
+> [VERIFIED — generated results document, 2026-09-03]
+
+The anchor arithmetic itself checks out exactly: `catboost_pvc` at K = 9, threshold 0.8 yields
+**6** features — the anchor's size, recovered from the stability table independently of the
+selection code. [VERIFIED]
+
+**The two arms disagree in the middle and converge late.** Top-K overlap between the static and
+mobile `catboost_pvc` rankings is 100% at K = 1–2, collapses to a **trough of 50% at K = 4**,
+recovers past 80% only from K = 10, and reaches 92% at K = 13 and 100% at K = 14. Only five of the
+seventeen rank positions agree outright — the top two and the bottom three. Static's third-ranked
+feature is `FlowThroughputStd`, mobile's is `AvgFlowThroughput`; `TcMessageRate` is 5th for mobile
+against 10th for static. The middle of the ranking is genuinely regime-dependent, and **the chosen
+K = 13 sits almost exactly where the two arms stop disagreeing.** A single-feature story would be
+too simple, and so would any claim that the two regimes rank features alike. [VERIFIED]
+
+### F. The 17th feature is redundant, not suppressed
+
+`RoutingOverheadBytesRatio` is nominally the most direct measurement of FPNT's TC padding, and the
+`metrics32` preset excludes it a priori as a defense-specific artifact. [Step 43](#step-43) recorded
+that exclusion as an open methodological problem, because the same preset had dropped the leading
+feature of [Step 42](#step-42)'s Watchdog/static run. The whole chain was therefore re-run with
+`--feature-set all`, into a parallel `_all17/` tree so the 16-feature results stand unchanged:
+
+| | 16 features | 17 features |
+|---|---|---|
+| tuned AUC static / mobile | 0.9871 / 0.9915 | 0.9870 / 0.9916 |
+| anchor set | 6 features | **the identical 6** |
+| optimal K | 13 | 12 |
+| **score at optimal K** | **0.9300** | **0.9300** |
+| peak score | 0.9300 (K = 13) | 0.9308 (K = 13) |
+| asymmetry at optimal K | 0.0026 | 0.0047 |
+
+**Importance rank of `RoutingOverheadBytesRatio`: 9th of 17**, averaged over six methods × 20 seeds
+× both arms — importance 0.0448 against 0.2697 for `AvgTxPacketSize`, **six times weaker**. Its
+per-method ranks are 5, 7, 9, 9, 10, 10, so this is consistent across measures rather than an
+artifact of one. It never enters the anchor even when available, and enters the sweep only at
+K = 9. [VERIFIED]
+
+**It does not add a slot — it takes one.** Comparing the two entry orders shows what "redundant"
+means mechanically. `RoutingOverheadBytesRatio` enters the 17-feature sweep at K = 9, the slot that
+in the 16-feature sweep belongs to **`NormalizedRoutingLoad`** — which is displaced all the way to
+K = 14. The two are the same quantity measured in different units: the OLSR share of traffic, by
+bytes and by frames. So the 17th feature does not contribute information the 16-feature run lacked;
+it **substitutes** for a feature already present and pushes it down the order. Everything below
+reshuffles accordingly — `AverageHopCount` 11 → 13, `AvgFlowDuration` 12 → 11, `FlowDurationStd`
+13 → 12 — while the anchor's six members and the next two entrants (`TcMessageRate`,
+`AverageMprCount`) are untouched. [VERIFIED]
+
+That is also the concrete cause of the one discrepant point. **At K = 12 the two runs hold sets
+differing in exactly two members:** the 16-feature set carries `NormalizedRoutingLoad` and
+`AverageHopCount` where the 17-feature set carries `RoutingOverheadBytesRatio` and
+`FlowDurationStd`. [VERIFIED]
+
+**The two runs are paired and the comparison is sound.** At K = 1, K = 2 and K = 4 the difference is
+exactly 0.0000 — the feature sets are identical at those points and the pipeline is deterministic,
+which confirms the pairing independently of anything else. (K = 3 differs by one member because the
+anchor's *internal* order differs between the runs, and K = 4 recovers the same set.) Across
+K = 3…16 every difference is below one seed-to-seed standard deviation except **K = 12 at 1.57 SD**
+— a real consequence of the substitution above, not noise. No conclusion changes: same anchor, same
+curve shape, same score at the chosen K. [VERIFIED]
+
+**One caution about where the 17th feature sits in the ranking.** Its per-method ranks 5–10 are
+tight compared with the worst case in the table: `NormalizedRoutingLoad` spans **4 to 15** across
+the six methods — `xgb_gain` ranks it 4th while both permutation measures put it 14th–15th. That is
+the widest disagreement of any feature, and it is the same column [Step 43](#step-43) named as a
+carrier of FPNT's residual signal after the byte ablation. A feature whose importance rank depends
+that strongly on how importance is measured should not be leaned on by either step without a
+mechanism. By contrast `AvgTxPacketSize` ranks 1st under five of six methods and 2nd under the
+sixth — the padding signal is not a measurement artifact of any one importance estimator.
+[VERIFIED]
+
+**The exclusion is not load-bearing.** The byte-padding signal is already saturated by the three
+packet-size features ranked above it; `RoutingOverheadBytesRatio` restates information the model
+already has rather than adding any. That settles the question in the *opposite* direction from the
+one [Step 42](#step-42)'s Watchdog result suggested — but only for FPNT, and only on this schema.
+Watchdog is the case where the column led the importance list, and it has not been through this
+chain. [VERIFIED for FPNT-17; untested elsewhere]
+
+### G. The reuse claim, as an artifact
+
+Two checkers were written so the port's fidelity is a file rather than a sentence in a paper:
+
+- **A 50-check self-test** covering all four stages: every stage parses and imports; no absolute
+  dataset path is baked into any of them; an explicit root is authoritative and a wrong one raises;
+  the built-in default layout is byte-identical to the previous hard-coded registry; `resolve_root`
+  reaches the same directory through all three entry points; the two independent loaders return
+  identical `(X, y, groups)` **and** match `paper_v4/fpnt17_static/run_config.json` at 8,020 windows
+  / 2,005 runs / exactly four windows per run / 16 features; the grouped leakage guard fires on
+  overlap and no run spans a split partition; the anchor arithmetic; and the anchor parser's refusal
+  to mistake a path for a feature name. Checks that need data **skip cleanly** when an arm is absent,
+  so the suite is meaningful on both collaborators' machines. All 50 pass. [VERIFIED]
+- **A per-function AST comparison against the originals.** Both files are parsed to an AST,
+  docstrings are stripped, and the result is unparsed back to normalised source — which erases
+  exactly what the adaptation policy permits (comments, docstrings, whitespace, quote style) and
+  preserves everything that determines a computed value. Result: **14 functions identical,
+  11 differing, 0 missing**, with the 11 differing only in message formatting, the thread constant,
+  import placement, and one signature change the multi-model parameter store requires. This is the
+  artifact that backs the paper's reuse claim. [VERIFIED]
+
+### H. What is not done
+
+- **Only FPNT has been through the four stages.** TRUST-17 was started in the same invocation and
+  interrupted; its partial artifacts were removed. DCFM and Watchdog live on the other
+  collaborator's machine.
+- **The four-defense LISTENER-17 table is blocked on registry entries, not on new simulations.**
+  The layout table has `fpnt17` and `trust17` but **no `dcfm17` or `watchdog17`** — locally, DCFM and
+  Watchdog resolve only to their 33-feature trees. But [Step 42](#step-42) generated 2,000-run
+  LISTENER-17 datasets for both defenses on the other machine. So what the table needs is two layout
+  entries plus a run of the chain there, not a regeneration. [HYPOTHESIS — the layout table and the
+  Step-42 datasets are both verified; that the Step-42 trees satisfy this chain's loader contract
+  has not been checked on that machine]
+- **Stage 2's full cross-domain sensitivity grid has never been run**, for any defense — only the
+  derivation path, via `--skip-evaluation`, which yields the anchor in minutes. The full grid is
+  K × 6 methods × 2 variants × 3 classifiers × 20 seeds ≈ **23,000 cells** on 8,020 windows: an
+  overnight job with `--resume`, and a sensitivity appendix rather than a result. Its outputs
+  (`recommended_K_per_method.csv`, `summary.txt`, `optimal_k_curves.png`) do not yet exist.
+- **A cross-defense transfer result exists but is undocumented here.** The collaborator's merge the
+  same day added `scripts_for_17/transfer/` — `dcfm+fpnt → trust`, static and mobile. Those numbers
+  are not read into this report and should get their own step. [VERIFIED — the directory exists]
+
+### Sources
+- New stages (ML repo root): {refml("hp_search_v4.py")}, {refml("feature_importance_sensitivity_v4.py")},
+  {refml("k_sweep_universal4_v4.py")}, {refml("select_optimal_k_v4.py")}
+- Drivers and checkers: {refml("run_pipeline_v4.sh")}, {refml("qa_pipeline_v4.py")},
+  {refml("porting_audit.py")} → {refml("PORTING_NOTES.md")}
+- Shared foundation, modified (+190 lines): {refml(ML_PIPE)} — the `DATASET_LAYOUT` layout table,
+  `resolve_root()` / `available_defenses()` / `is_condition_dir()`, the `--dataset-root` and
+  `--list-data` flags, the `--data-root` × multi-arm guard, and the hard core ceiling
+- Results document: `make_results_doc.py` — regenerates the per-variant tables (runs, tuned HP,
+  anchor, K-sweep, optimal-K candidates, cross-run comparison, six-method importance and rank
+  spread, static/mobile side-by-side, top-K overlap, bootstrap stability) from the pipeline's own
+  outputs, so nothing in them is transcribed by hand. Re-run it after any new sweep
+- Outputs (git-tracked under {refml(DML + "/results/30_schema33/paper_v4", "paper_v4/")}):
+  `hp_search/fpnt17/` (`hp_search_config.json`; `{{static,mobile}}/best_models.pkl` git-ignored),
+  `feature_importance_sensitivity/fpnt17/` (`universal_set.txt`, `universal_set_members.csv`,
+  `universal_set_provenance.json`, `stability_per_threshold.csv`, `fis_config.json`,
+  `importance_cache/`), `k_sweep/fpnt17/` (`k_sweep_results.csv`, `k_sweep_summary.txt`,
+  `k_sweep_config.json`, `optimal_k.json`), and the same three trees with an `_all17` suffix for the
+  17-feature run
+- Branch `port-advisor-stages`, merged to `main` 2026-09-02; the collaborator's
+  `scripts_for_17/transfer/` landed the same day
+- Antecedents: [Step 43](#step-43) (the FPNT byte-padding ablation this step corroborates, the
+  `--feature-set all` question it answers, and the power-offs it supplies a candidate cause for);
+  [Step 42](#step-42) (the Watchdog/static importance result that made the 17th feature worth
+  testing); [Step 41](#step-41) (the LISTENER-17 schema)
+""")
+
 md("""
 ---
 # Part VI — Synthesis
@@ -5527,7 +5900,7 @@ These cannot be resolved by analysis alone.
 | 1 | **Is FPNT's TC padding inherent to the method, or an implementation choice?** | If **inherent**, detection via TC size is a **legitimate finding** — a real weakness of the defense, observable by any passive attacker — and the whack-a-mole should **stop**. If an **artefact**, removal is correct. The entire status of the FPNT result turns on this. **Addressed ([Step 34](#step-34)):** FPNT's TC enlargement survives the static<->mobile transfer test (ROC-AUC 1.000 both directions), so detection via TC size is a legitimate, generalising finding — though confirmed against a *single* implementation only. **RESOLVED — implementation choice ([Step 43](#step-43)).** The Step-34 reading is withdrawn: a *constant* padding overhead generalises across mobility precisely because it is constant, so the transfer test never bore on the question. The test that does is indifference to the adversary, and mean frame size rises 207.01 → 252.22 B identically with and without an attacker (Cohen's *d* = 1.40) while `TcMessageRate` and `AverageAdvertisedLinksPerTCMessage` do not move at all. Dropping the five byte-derived features collapses ROC-AUC 0.9875 → 0.6027 (static) and 0.9924 → 0.6194 (mobile) — the same collapse [Step 21](#step-21) measured on the unrelated 95-feature schema. The whack-a-mole was correct; the artefact must be removed |
 | 2 | **Does DCFM's mechanism inherently alter MPR structure and TC advertisement?** | Determines whether the DCFM cluster (`AverageMprCount`, `AdvertisedLinks`, `NormalizedRoutingLoad`) is a legitimate signature or an artefact. |
 | 3 | **Why is DCFM/mobile easier to detect than DCFM/static**, inverting the pattern of every other defense? | Either a genuine mechanistic property (DCFM acts on topology dynamics, so mobility "activates" it) or a data-generation artefact ([Step 32](#step-32)). **[Step 37](#step-37) narrows this:** the data-artefact branch is now excluded for the normalisation channel — the two datasets are the same simulations and the inversion survives de-normalisation (0.9591 static vs 0.9760 mobile raw). The recovered `nObs` is also larger under mobility (57.8 vs 53.8), consistent with the mechanistic reading. **[Step 38](#step-38) then reverses the inversion:** with one CBR flow instead of three, static overtakes mobile in every one of the six runs (e.g. 0.9780 vs 0.9681 on the 32-set). So the advantage is **not a fixed property of the defense**. The candidate source is per-flow variance under mobility — the five `Flow*Std` features carry 0.558–0.589 univariate AUC in three-flow mobile against 0.500–0.507 in static, and go identically zero with one flow. `[HYPOTHESIS]`; the decisive test is a three-flow run with those five features explicitly dropped. |
-| 5 | **Is `RoutingOverheadBytesRatio` a discarded real signal?** | It is the strongest univariate feature in three of [Step 38](#step-38)'s four conditions (0.844 / 0.903 one-flow, 0.846 / 0.930 three-flow), ahead of `TcMessageRate` in static — yet it is excluded from `METRICS` a priori as an FPNT byte-padding artefact, and pruned in every fold at \\|r\\| = 0.966–0.987 against `RoutingOverheadRatio`. For DCFM it measures the byte share of TC flooding, which is the mechanism itself. Whether the a-priori exclusion is right for DCFM is untested. |
+| 5 | **Is `RoutingOverheadBytesRatio` a discarded real signal?** | It is the strongest univariate feature in three of [Step 38](#step-38)'s four conditions (0.844 / 0.903 one-flow, 0.846 / 0.930 three-flow), ahead of `TcMessageRate` in static — yet it is excluded from `METRICS` a priori as an FPNT byte-padding artefact, and pruned in every fold at \\|r\\| = 0.966–0.987 against `RoutingOverheadRatio`. For DCFM it measures the byte share of TC flooding, which is the mechanism itself. Whether the a-priori exclusion is right for DCFM is untested. **Answered for FPNT-17 ([Step 44](#step-44)): redundant, not suppressed.** The whole K-selection chain was re-run with `--feature-set all`; the column ranks **9th of 17** over six importance methods × 20 seeds × both arms (importance 0.0448 against 0.2697 for `AvgTxPacketSize` — 6× weaker, per-method ranks 5/7/9/9/10/10), never enters the anchor even when available, and leaves the score at the chosen K unchanged at 0.9300. The three packet-size features above it already saturate the padding signal. **Still untested for DCFM and Watchdog** — Watchdog is the sharp case, since the column *topped* its static importance list in [Step 42](#step-42) |
 | 4 | **Does forcing `RtsCtsThreshold = 0` on small packets constitute a cheat for the model?** | Raised at the 2026-05-18 meeting ([Step 18](#step-18)). Two defenses force RTS/CTS; if the classifier reads that, it is reading our configuration, not the defense. **This question anticipated the whole leakage analysis and is still open.** |
 
 > **The framing that resolves Q1–Q2** is *not* whether a feature name sounds behavioural,
@@ -5560,7 +5933,11 @@ follows the logs.**
 | 14 | **Training distribution is 1-hop-attacker only** | A model expected to generalise to *n*-hop attackers needs the generator to sample attacker hop-distance ([Step 16](#step-16)) |
 | 16 | **What carries FPNT's residual 0.60–0.62?** ([Step 43](#step-43)) | After the byte ablation the remaining signal sits on `NormalizedRoutingLoad` (*d* = −0.18 / −0.28) and `DataPacketRate` (*d* = +0.16 / +0.19) — more frames heard, a smaller share of them OLSR — with `TcMessageRate` flat, so it is not new control traffic. Plausibly a retransmission echo of the same padding. **The decisive test is one more ablation dropping those two as well; NOT RUN** |
 | 17 | **Does TRUST/static's signal have a carrier at all?** ([Step 43](#step-43)) | ROC-AUC 0.5585 with a CI excluding chance, yet every univariate |*d*| < 0.05 and the top permutation importance is 0.017 — apparently a multivariate aggregation of many *d* ≈ 0.01–0.05 effects that 8,040 windows suffice to detect. The grouped label-permutation test [Step 42](#step-42) ran on Watchdog would characterise the null directly. **NOT RUN** |
-| 18 | **`--feature-set all` was not used on the [Step 43](#step-43) campaigns** | Those four batches ran the default preset, so `RoutingOverheadBytesRatio` was silently dropped and the base width was **16 → 82**, against **17 → 87** in [Step 42](#step-42). That is the column which topped Watchdog/static importance there. A re-run at `--feature-set all` would make the two campaigns' un-ablated numbers directly comparable; §D of [Step 43](#step-43) shows the column is byte-derived and the ablation would have removed it anyway, but that argument does not cover the un-ablated results |
+| 18 | **`--feature-set all` was not used on the [Step 43](#step-43) campaigns** | Those four batches ran the default preset, so `RoutingOverheadBytesRatio` was silently dropped and the base width was **16 → 82**, against **17 → 87** in [Step 42](#step-42). That is the column which topped Watchdog/static importance there. A re-run at `--feature-set all` would make the two campaigns' un-ablated numbers directly comparable; §D of [Step 43](#step-43) shows the column is byte-derived and the ablation would have removed it anyway, but that argument does not cover the un-ablated results. **RESOLVED for FPNT ([Step 44](#step-44)):** the paired 16- vs 17-feature runs differ by 0.0001 in tuned AUC, share an identical anchor set, and score identically at the chosen K, so the preset cost FPNT nothing. **Open for TRUST**, which has not been re-run at `--feature-set all` |
+| 19 | **The four-defense LISTENER-17 table is blocked on two registry entries, not on new simulations** ([Step 44](#step-44)) | The `DATASET_LAYOUT` table has `fpnt17` and `trust17` but **no `dcfm17` or `watchdog17`**, so on the FPNT/TRUST machine those two defenses resolve only to their 33-feature trees — which is why the session log there concluded new simulations were needed. They are not: [Step 42](#step-42) generated 2,000-run LISTENER-17 datasets for both, on the other collaborator's machine. What is needed is two layout entries plus a run of the four-stage chain there. Unverified: whether the Step-42 trees satisfy this chain's loader contract |
+| 20 | **Stage 2's full cross-domain sensitivity grid has never been run** ([Step 44](#step-44)) | Only the derivation path (`--skip-evaluation`) has been exercised, for any defense — it yields the anchor in minutes. The full grid is K × 6 methods × 2 variants × 3 classifiers × 20 seeds ≈ **23,000 cells**: an overnight job with `--resume`, and a sensitivity appendix rather than a result. `recommended_K_per_method.csv`, `summary.txt` and `optimal_k_curves.png` do not yet exist |
+| 21 | **A cross-defense transfer result exists and is undocumented** ([Step 44](#step-44)) | `scripts_for_17/transfer/` — `dcfm+fpnt → trust`, static and mobile — landed in the ML repository on 2026-09-02. It is the LISTENER-17 successor to [Step 36](#step-36)'s LODO experiment and bears directly on question 14, but its numbers have not been read into this report. **Needs its own step** |
+| 22 | **TRUST-17, DCFM and Watchdog have not been through the K-selection chain** ([Step 44](#step-44)) | TRUST-17 was started in the same invocation as FPNT-17 and interrupted; its partial artifacts were removed. Until at least TRUST-17 is run, the anchor/K-sweep result is a single-defense finding inside a four-defense study, and the `--classifier auto` design — which exists precisely because the best model differs per arm — has been exercised on one arm family only |
 """)
 
 md("""
@@ -6181,7 +6558,13 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 
 | File | Role |
 |---|---|
-| {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them. Since [Step 42](#step-42) `load_dataset()` also **drops every window of any run with an undefined `NormalizedRoutingLoad`**, before the CV split, and reports the count; the two `fillna` calls at the end of `engineer_features()` are retained as `inf` guards. [Step 43](#step-43) drives it with `--defense fpnt17|trust17` and uses `--drop-features` for the five-byte-feature ablation (base 16 → 11, expanded 82 → 57 — evidence that the composite gate stops a dropped base feature re-entering through a derived column) |
+| {refml("defense_detection_v4.py")} | **The pipeline** — consolidation of the instructor's v2 + `defense_ml` (structure and most components from v2; the additions are the statistical-validation layer). 13 models incl. Stacking; multi-criterion selection (MI + ANOVA F + RF + ET); grouped repeated CV with **in-fold** isotonic calibration and threshold tuning; Nadeau-Bengio corrected CIs; `Dummy` floor; TPR@FPR; grouped permutation test; **no SMOTE** ([Step 29](#step-29)). Section `[9] Transfer experiments` ([Step 35](#step-35)) adds three flag-gated generalisation experiments — `--transfer-mobility`, `--transfer-defense`, `--lodo`, plus `--transfer-model` — under a frozen-source-model protocol; off by default, and the CV/statistics core is untouched by them. Since [Step 42](#step-42) `load_dataset()` also **drops every window of any run with an undefined `NormalizedRoutingLoad`**, before the CV split, and reports the count; the two `fillna` calls at the end of `engineer_features()` are retained as `inf` guards. [Step 43](#step-43) drives it with `--defense fpnt17|trust17` and uses `--drop-features` for the five-byte-feature ablation (base 16 → 11, expanded 82 → 57 — evidence that the composite gate stops a dropped base feature re-entering through a derived column). [Step 44](#step-44) makes it the **shared foundation of the K-selection chain** (+190 lines): the absolute-path registry becomes a relative `DATASET_LAYOUT` table resolved at runtime by `resolve_root()` with the precedence `--data-root` → `--dataset-root` → `$DEFENSE_ML_DATA_ROOT` → defaults (an explicit root is **authoritative** — a wrong one raises, naming every path tried); new `available_defenses()`, `is_condition_dir()`, `--dataset-root` and `--list-data`; `--data-root` is **refused** with `--mobility both` or `--defense all` (it names one condition dir, and without the guard both arms loaded the same data and the cross-domain comparison went vacuous); and a **hard `MAX_JOBS` ceiling of 8**, which the environment may lower but never raise |
+| {refml("hp_search_v4.py")} | **Stage 1 — written from scratch** ([Step 44](#step-44)). The tuned-parameter store all three downstream stages open with `load_best_params()`; the supervisor's project has a `unified_hp_search` stage this one never had, and the previous `model_params.json` was a dump of the zoo defaults, identical for every defense. `RandomizedSearchCV`, 25 candidates/model, 3-fold `StratifiedGroupKFold` by `run_id`, scoring ROC-AUC. Three constraints forced by the downstream code: the grids stay inside the XGBoost/CatBoost parameter whitelists, the `Pipeline([StandardScaler, clf])` is searched but **only the classifier is pickled** (the downstream filters on classifier-level keys), and the store is written with plain `pickle.dump` because stage 2 opens it with `pickle.load` and stage 3 with `joblib.load` |
+| {refml("feature_importance_sensitivity_v4.py")} | **Stage 2 — anchor derivation**, ported 1,241 → 1,265 lines. Unchanged from the original: the six importance methods (RF impurity, XGBoost gain, CatBoost PVC, plus permutation on each), the `soft`/`strict` universal-set constructions, the four stability thresholds, the three evaluation classifiers, the 60/20/20 `GroupShuffleSplit`, the validation threshold sweep, both transfer directions, the eval cache, the checkpoint/resume state machine and the six-panel plot. **The one addition** is `write_universal_set`, which emits `universal_set.txt` — the member *names* the original never wrote anywhere, which is how the wrong anchor reached the reverted sweep. Runs before the `--skip-evaluation` early return |
+| {refml("k_sweep_universal4_v4.py")} | **Stage 3 — cross-domain K-sweep**, ported 518 → 775 lines. Unchanged: `split_source_60_20_20`, the source-train-only `StandardScaler`, the accuracy threshold sweep on source validation, `evaluate_seed`, the CatBoost-PVC ranking, `select_features_for_K`, incremental `to_csv` per K and the output column contract. **Two substantive changes:** the anchor is mandatory with **no built-in fallback** (`--universal-set` defaults to stage 2's artifact and hard-errors if absent; `_looks_like_path` stops a missing path being read as a one-element feature list), and `--classifier auto` picks the evaluation model **per arm** from that arm's `summary.csv`, with non-probabilistic families calibrated on the source *validation* partition. **Deliberately preserved:** the `S_in_domain` and `S_to_M` rows come from the same fitted model and are not independent |
+| {refml("select_optimal_k_v4.py")} | **Stage 4 — the one-SD parsimony rule**, ported 136 → 249 lines; the rule itself is byte-identical (score = mean of the two cross-domain accuracies; tolerance = one SD at the peak; choose the **smallest** K within tolerance, ties broken by lower asymmetry). Added: `--defense` resolves the sweep CSV from the layout, `--all` walks every completed sweep into a combined `optimal_k_all.csv` (the per-defense table a single-defense study had no reason to produce), and `features_at_optimal` is recorded in the JSON so the decision is self-contained |
+| {refml("make_results_doc.py")} → {refml("RESULTS_FPNT17.md")} | **The results document generator** ([Step 44](#step-44)). Reads the chain's own outputs and emits the per-variant tables — runs, tuned hyperparameters, anchor, K-sweep, the full optimal-K candidate table with per-K sd and asymmetry, the cross-run comparison in units of seed-to-seed sd, mean importance across all six methods, the per-method rank spread, the static/mobile side-by-side ranking, top-K overlap, and bootstrap stability at all four thresholds. **Nothing in it is transcribed by hand**, so it is the authority when a session log's prose disagrees with it — which happened once, over the K = 2 stability threshold. Re-run after any new sweep |
+| {refml("run_pipeline_v4.sh")}, {refml("qa_pipeline_v4.py")}, {refml("porting_audit.py")} → {refml("PORTING_NOTES.md")} | Driver and checkers ([Step 44](#step-44)). The driver runs the four stages in order for one defense, a comma list, or `all` — which asks `--list-data` which arms the machine holds, so each collaborator runs one identical command; stage 2 runs with `--skip-evaluation`, per-stage logs go to `run17_logs/`, and failures are collected rather than aborting the campaign. `qa_pipeline_v4.py` is a 50-assertion self-test in 11 groups that **skips cleanly** when an arm is absent, so it is meaningful on both setups. `porting_audit.py` AST-compares each ported function against the supervisor's original with docstrings stripped — **14 identical, 11 differing, 0 missing** — and is the artifact backing the paper's reuse claim |
 
 *Key scripts in `scripts_for_all_128/` (runs 1–3, Step 34, the Step-36 cross-defense tree, and the Step-37 un-normalised replication)*
 
@@ -6239,6 +6622,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `{S36}/` (**[Step 38](#step-38)** one-flow un-normalised DCFM) | `33_features/`, `32_features/`, `27_features/`, each with `results_static/` + `results_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`integrity.csv`, `control_group.csv`, `pairing.csv`, `degeneracy_univariate.csv`, `effective_dimension.csv`, `baseline_provenance.csv`, `probe_1ch.log`, `probe_3ch.log`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `comparison_matrix.csv`, `config_parity.csv`, `importance_top.csv`, `acc_prev_vs_cur.csv`, `acc_prev_vs_cur_tables.txt`, `whatsapp_tables.txt`); `logs/` |
 | `scripts_for_17/results_dcfm_2000/`, `scripts_for_17/results_watchdog_2000/` (**[Step 42](#step-42)** — the first 17-observable campaigns) | One folder per campaign, each with `static/` + `mobile/` holding the standard v4 leaf outputs (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`; `final_model.pkl` and `figures/` are git-ignored), plus the tee’d stage logs `static_log.txt` / `mobile_log.txt`. `results_watchdog_2000/` additionally holds `static_perm/` + `mobile_perm/` — the 200-permutation grouped null for each regime. `results_watchdog_1000/` is the earlier, smaller Watchdog campaign on the same schema |
 | `{DML}/results/30_schema33/paper_v4/fpnt17_*`, `…/trust17_*` (**[Step 43](#step-43)** — the FPNT and TRUST 17-observable campaigns) | Six condition dirs written under the **v4 default results root**, not under `scripts_for_17/`: `fpnt17_{{static,mobile}}/`, `trust17_{{static,mobile}}/` and the byte-ablation pair `fpnt17_{{static,mobile}}_nobytes/`. Each holds `summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `model_params.json` (the 2026-09-01 `dump_model_params` provenance dump), `summary.tex`, `final_model.pkl` and `figures/`. Source datasets are machine-local: master `~/olsr-batch/out/{{fpnt,trust}}_{{static,mobile}}/` (99 MB, with `runs.csv`, `probe.csv`, `defense_params.txt`, `runner.summary`, `runner.config`, `logs/`, `.runstate/seeds.ledger`), md5-identical working copy `{DML}/dataset_final/{{fpnt_17,trust_17}}/{{static,mobile}}_canonical/` — **git-ignored, on one machine, not backed up** |
+| `{DML}/results/30_schema33/paper_v4/{{hp_search,feature_importance_sensitivity,k_sweep}}/` (**[Step 44](#step-44)** — the K-selection chain) | Per defense: `hp_search/<defense>/hp_search_config.json` plus `{{static,mobile}}/best_models.pkl` (git-ignored — large and reproducible); `feature_importance_sensitivity/<defense>/` with `universal_set.txt` (**the artifact stage 3 consumes**), `universal_set_provenance.json`, `universal_set_members.csv`, `stability_per_threshold.csv`, `fis_config.json` and `importance_cache/importance_<method>.pkl` (6 files, kept so a re-run resumes); `k_sweep/<defense>/` with `k_sweep_results.csv` (long form, `direction ∈ {{S_in_domain, M_in_domain, S_to_M, M_to_S}}`), `k_sweep_summary.txt`, `k_sweep_config.json` and `optimal_k.json`; plus `k_sweep/optimal_k_all.csv` from `--all`. The same three trees carry an **`_all17` suffix** for the 17-feature sensitivity run, so the 16-feature results stand unchanged. Only `fpnt17` is populated |
 
 ### Reproduction environment
 ```bash

@@ -96,7 +96,7 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 43 steps)
+## 4. Notebook structure (7 parts, 44 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
@@ -106,7 +106,7 @@ Chronological. Each step is one `md(f"...")` cell.
 | **II — Defense Implementation** | 7–19 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
 | **III — ML Campaign 1 (`defense_ml`)** | 20–25 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
 | **IV — The Transition** | 26 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–43 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed; **Steps 39–40 — two defense realignments to their source papers** (Watchdog → Baiad 2014/2016 + Marti 2000; TRUST → Adnane 2013), each with an oracle-column sampling defect found in the process. They are not ML steps and sit at the end of Part V only because that is where the chronology put them; **Step 41 — the single-listener rebuild**, which replaces the 128-feature schema with the supervisor's 17-observable LISTENER spec and applies four changesets (TRF-006 hop gate removed, WIN-003 conditional prologue, SL-2 single vantage, SL-3 new schema) to all four harnesses, unifies the oracle table across them, and records three defects found on the way. Also not an ML step; **Step 42 — the first campaigns on that schema**: a NaN-handling fix in `load_dataset()` (run-level `dropna` on `NormalizedRoutingLoad`, before the CV split), 2,000-run DCFM and Watchdog datasets in both mobility regimes, and the detectability↔efficacy tradeoff measured end to end (DCFM AUC 0.96 at 87% FAR and −16.8 pp idle cost; Watchdog AUC 0.59 at 0.5% FAR and zero idle cost), with a 200-permutation grouped null on both Watchdog regimes; **Step 43 — the other two defenses on the same schema**: four FPNT/TRUST batches (8,034 runs / 32,136 windows), the runner's acceptance criterion identified as a connectivity assertion (closing a Step-42 open item), FPNT's near-perfect 0.99 AUC shown to be a **byte-padding implementation artifact** and collapsed to 0.60/0.62 by a five-feature ablation (replicating Step 21 on an unrelated schema, and resolving Open Question 1 against Step 34's earlier reading), TRUST shown **dormant in static topologies** (defense effect −0.03%, ΔPDR −0.02 pp) so that mobility *exposes* reactive defenses rather than masking them, and all four defenses placed on one recovery-vs-AUC table. Two configuration differences from Step 42 are recorded there and matter when quoting across the two campaigns: **1 attacker not 2**, and the default feature preset (**16 → 82**) rather than `--feature-set all` (17 → 87) |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–44 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed; **Steps 39–40 — two defense realignments to their source papers** (Watchdog → Baiad 2014/2016 + Marti 2000; TRUST → Adnane 2013), each with an oracle-column sampling defect found in the process. They are not ML steps and sit at the end of Part V only because that is where the chronology put them; **Step 41 — the single-listener rebuild**, which replaces the 128-feature schema with the supervisor's 17-observable LISTENER spec and applies four changesets (TRF-006 hop gate removed, WIN-003 conditional prologue, SL-2 single vantage, SL-3 new schema) to all four harnesses, unifies the oracle table across them, and records three defects found on the way. Also not an ML step; **Step 42 — the first campaigns on that schema**: a NaN-handling fix in `load_dataset()` (run-level `dropna` on `NormalizedRoutingLoad`, before the CV split), 2,000-run DCFM and Watchdog datasets in both mobility regimes, and the detectability↔efficacy tradeoff measured end to end (DCFM AUC 0.96 at 87% FAR and −16.8 pp idle cost; Watchdog AUC 0.59 at 0.5% FAR and zero idle cost), with a 200-permutation grouped null on both Watchdog regimes; **Step 43 — the other two defenses on the same schema**: four FPNT/TRUST batches (8,034 runs / 32,136 windows), the runner's acceptance criterion identified as a connectivity assertion (closing a Step-42 open item), FPNT's near-perfect 0.99 AUC shown to be a **byte-padding implementation artifact** and collapsed to 0.60/0.62 by a five-feature ablation (replicating Step 21 on an unrelated schema, and resolving Open Question 1 against Step 34's earlier reading), TRUST shown **dormant in static topologies** (defense effect −0.03%, ΔPDR −0.02 pp) so that mobility *exposes* reactive defenses rather than masking them, and all four defenses placed on one recovery-vs-AUC table. Two configuration differences from Step 42 are recorded there and matter when quoting across the two campaigns: **1 attacker not 2**, and the default feature preset (**16 → 82**) rather than `--feature-set all` (17 → 87); **Step 44 — the K-selection chain ported** from the supervisor's single-defense study under the rule *nothing may change a computed value*: four stages (HP search written from scratch, anchor derivation, cross-domain K-sweep, one-SD optimal-K rule), the reverted first attempt whose **silent anchor fallback** invalidated it, two substantive corrections (anchor derived per defense with no fallback; `--classifier auto` per arm), machine-portable dataset resolution with a hard 8-core ceiling, and FPNT-17 through the whole chain — a 6-feature all-byte anchor, **optimal K = 13 at 0.9300 cross-domain accuracy** with asymmetry 0.0026, Ridge beating tuned XGBoost and CatBoost, and `RoutingOverheadBytesRatio` shown **redundant rather than suppressed** (rank 9/17, same score at the chosen K). Fidelity is an artifact, not a claim: a 50-check self-test and an AST port audit (**14 identical, 11 differing, 0 missing**) |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -247,8 +247,8 @@ print('steps sequential 1..N:', steps == [str(i) for i in range(1, len(steps)+1)
 print('stray "{" leaks (f-string bugs):', body.count('{ref(') + body.count('{refml('))
 ```
 
-Expected (as of Step 43): `cells: 64`, `BROKEN internal links: []`,
-`steps sequential 1..N: True` with `N = 43`, `stray "{" leaks: 1`.
+Expected (as of Step 44): `cells: 65`, `BROKEN internal links: []`,
+`steps sequential 1..N: True` with `N = 44`, `stray "{" leaks: 1`.
 The single known leak is a pre-existing one — a `{ref("run_simulations.sh")}` inside a plain
 `md("...")` cell that should be `md(f"...")`. It is harmless (it renders literally) and unrelated
 to recent edits; leave it unless you are specifically fixing it. If the count rises **above 1**,
@@ -374,3 +374,52 @@ Three things to know before quoting or reproducing these:
   Step 41's WIN-003 (400 s canonical) even though both report `HARNESS_VERSION 3.0.0` /
   `HEADER_VERSION 8`. The branch bases were never diffed — see the Reconciling-the-record table,
   row 8b. **Do not assume a matching version string means a matching harness.**
+
+
+### 7.4 The K-selection chain — four new stages at the ML repo root (Step 44)
+
+Added on branch `port-advisor-stages`, merged to `main` 2026-09-02. These are **ported from the
+supervisor's single-defense study**, and the port is the point: the paper claims it reuses his
+pipeline, so the adaptation policy was **nothing may change a computed value** — estimators,
+splits, metrics, ranking and selection rules stay as written; docstrings, CLI shape, output paths
+and the thread budget are fair game.
+
+| File | Stage | Provenance |
+|---|---|---|
+| `hp_search_v4.py` | 1 — tuned-parameter store | **new** (his project has a `unified_hp_search` this one never had) |
+| `feature_importance_sensitivity_v4.py` | 2 — anchor set | ported, 1,241 → 1,265 lines |
+| `k_sweep_universal4_v4.py` | 3 — cross-domain K-sweep | ported, 518 → 775 lines |
+| `select_optimal_k_v4.py` | 4 — one-SD parsimony rule | ported, 136 → 249 lines |
+| `run_pipeline_v4.sh` / `qa_pipeline_v4.py` / `porting_audit.py` | driver + checkers | new |
+
+They chain: stage 1 writes `best_models.pkl`, stage 2 writes `universal_set.txt`, stage 3 consumes
+both and writes `k_sweep_results.csv`, stage 4 turns that into `optimal_k.json`. Outputs go under
+`{DML}/results/30_schema33/paper_v4/{hp_search,feature_importance_sensitivity,k_sweep}/<defense>/`,
+with an `_all17` suffix on the 17-feature sensitivity variant. `results/` is git-tracked;
+`**/best_models.pkl`, `**/final_model.pkl` and `**/figures/*.png` are not.
+
+Four things to know before documenting or re-running any of it:
+
+- **The anchor set is per defense and has no fallback — do not reintroduce one.** The reverted
+  first sweep ran on the supervisor's hard-coded four-feature anchor, derived from *his* 33-metric
+  arm, and produced a flat K=1..4 shelf that was pure artifact. `--universal-set` now defaults to
+  stage 2's artifact for that defense and hard-errors if absent. The same rule was applied to
+  dataset paths: an explicit `--dataset-root` is the **only** base searched. Silent plausible
+  defaults are the recurring failure mode in this project; state that when documenting either.
+- **Stage 2 has two run modes with wildly different costs.** `--skip-evaluation` yields the anchor
+  in **minutes** and is all stage 3 needs. The full cross-domain grid is K × 6 methods × 2 variants
+  × 3 classifiers × 20 seeds ≈ **23,000 cells** — an overnight `--resume` job that **has never been
+  run for any defense**. Do not cite `recommended_K_per_method.csv`, `summary.txt` or
+  `optimal_k_curves.png`; they do not exist.
+- **`S_in_domain` and `S_to_M` in the sweep CSV are not independent.** They are read from the same
+  fitted model through two accuracy fields. This is the supervisor's design and was preserved
+  deliberately; never present them as two measurements.
+- **`make_results_doc.py` → `RESULTS_FPNT17.md` is the authority on this chain's numbers.** It is
+  machine-generated from the pipeline's own outputs, and it already contradicted a session log once
+  (the K = 2 bootstrap-stability threshold: the log said the two-feature core held at 0.9, the table
+  says only one feature clears 0.8). Follow the generated document, and re-run it after any new
+  sweep rather than transcribing figures from prose.
+- **Only `fpnt17` has been through the chain.** `trust17` was interrupted; `dcfm17` and `watchdog17`
+  have **no `DATASET_LAYOUT` entries at all**, even though [Step 42] generated LISTENER-17 data for
+  both on the other collaborator's machine. The blocker is two layout entries plus a run there —
+  **not** new simulations, whatever the session log on the FPNT/TRUST machine concluded.
