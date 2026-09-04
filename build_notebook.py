@@ -281,6 +281,7 @@ md("""
 42. [The first 17-observable campaigns: a NaN fix, 2,000-run DCFM and Watchdog datasets, and the tradeoff measured](#step-42) — 2026-09-01
 43. [FPNT and TRUST on the 17-observable schema: a byte-padding artifact, and a defense that never wakes up](#step-43) — 2026-09-01
 44. [Porting the supervisor's K-selection chain: an anchor derived per defense, and the 17th feature shown redundant](#step-44) — 2026-09-02
+45. [Asking *which* defense: the multi-class port, and a control that caught the pipeline cheating](#step-45) — 2026-09-04
 
 **Part VI — Synthesis**
 
@@ -5874,12 +5875,225 @@ Two checkers were written so the port's fidelity is a file rather than a sentenc
   `importance_cache/`), `k_sweep/fpnt17/` (`k_sweep_results.csv`, `k_sweep_summary.txt`,
   `k_sweep_config.json`, `optimal_k.json`), and the same three trees with an `_all17` suffix for the
   17-feature run
-- Branch `port-advisor-stages`, merged to `main` 2026-09-02; the collaborator's
-  `scripts_for_17/transfer/` landed the same day
+- Branch `port-advisor-stages`, merged to `main` 2026-09-02 by the collaborator (merge commit
+  `3cde152`); the collaborator's `scripts_for_17/transfer/` landed the same day. **Partially**,
+  though: the merge took the branch at `3a3c3b7`, so the four commits after it — `bc6f961`
+  (the 17-feature sensitivity run), `d6a476b` (session report), `d13cc11` (pipeline reference)
+  and `8859c1b` (`RESULTS_FPNT17.md`, this chain's authority on its own numbers) — are **not on
+  `main`**. The ported stages themselves are. See *Reconciling the record* row 8c
 - Antecedents: [Step 43](#step-43) (the FPNT byte-padding ablation this step corroborates, the
   `--feature-set all` question it answers, and the power-offs it supplies a candidate cause for);
   [Step 42](#step-42) (the Watchdog/static importance result that made the 17th feature worth
   testing); [Step 41](#step-41) (the LISTENER-17 schema)
+""")
+
+md(f"""
+<a id="step-45" name="step-45"></a>
+## Step 45 — Asking *which* defense: the multi-class port, and a control that caught the pipeline cheating
+**Date:** 2026-09-04
+
+### Motivation — the half of the research question never measured
+
+The project's stated goal is to decide, from OLSR control traffic alone, **whether** a defense
+is running **and which one**. Every campaign so far has answered only the first half:
+{refml(ML_PIPE)} hard-wires `y = df["defense_enabled"].astype(int)` and every metric beneath it
+is binary — `predict_proba(...)[:, 1]`, a decision threshold tuned on a one-dimensional score,
+`roc_curve`, `f1_score`'s `average="binary"` default, and a confusion matrix labelled
+`["off", "on"]`.
+
+Two LISTENER-17 datasets now make the second half answerable: the collaborator's 2,000-run DCFM
+campaign of [Step 42](#step-42) and the local FPNT campaign of [Step 43](#step-43). Same schema,
+same 17 observables. This step builds the multi-class capability, and the control it ran first
+turned out to matter more than the experiment.
+
+### A. The port — a new module, not an edit to v4
+
+The whole of v4's computational core is task-agnostic, and was reused **unchanged**:
+`engineer_features()` takes no `y` at all; `FeatureSelector` ranks with `mutual_info_classif`
+and `f_classif`, both multi-class; `build_models()` contains **no** binary-only constructor
+argument anywhere — no `objective=`, no `scale_pos_weight`, no `eval_metric` — so LightGBM,
+XGBoost and CatBoost infer the task from `n_classes`; and `make_splits()` is
+`StratifiedGroupKFold`, which generalises to *K* classes. What is binary in v4 lives entirely in
+the scoring and reporting layer, and only that layer was rewritten: decisions become `argmax`
+with no threshold, metrics become macro one-vs-rest plus **per-class** AUC, recall and TPR@1%FPR,
+and the confusion matrix gets real class names and a row-normalised twin.
+
+Editing v4 in place would have touched the same functions that produced every number in
+[Steps 42](#step-42)–[44](#step-44). Instead {refml("defense_multiclass_v1.py")} imports them,
+and the pre-multi-class state is tagged **`v1.0-binary-baseline`** so those results stay
+reproducible. The only change to v4 is a single additive `DATASET_LAYOUT` entry for `dcfm17`,
+which cannot alter a computed value.
+
+That entry confirms **Open Question 19**'s diagnosis — the four-defense LISTENER-17 table was
+blocked on registry entries, not on new simulations. Staging the Step-42 DCFM trees and adding
+one line made both regimes resolve immediately. [VERIFIED]
+
+> **It also duplicated work already done, and the reason is worth recording.** `origin/main`
+> had carried `dcfm17` *and* `watchdog17` since `dc8e203`, in a better form — keyed on a
+> `CAMPAIGN` environment variable so the layout reads the batch folders as delivered rather than
+> renaming them. This was missed because the check that drove it, `git branch --merged main`,
+> resolves the **local** `main`, which was **nine commits stale**; no `fetch` had been run. The
+> same stale ref produced a wrong claim that [Step 44](#step-44)'s branch was never merged (it
+> was, partially — *Reconciling the record* row 8c). The collaborator's form supersedes the one
+> added here, and the same commit carries DCFM-17 through the entire K-selection chain, closing
+> half of question 22. **A `git fetch` before reasoning about branch state would have prevented
+> all of it** — the failure mode is the project's usual one, a plausible default trusted without
+> being checked, this time in the tooling rather than the data.
+
+**A collision that had to be handled first.** Both batches number their runs from 2, and 2,002
+`run_id`s overlap, so groups are namespaced `<arm>:<run_id>` before pooling — otherwise
+`StratifiedGroupKFold` would place windows from two different defenses in a single group.
+
+### B. The control — and what it found
+
+Because the arms were generated on different machines, a model could separate them on a **batch
+fingerprint** rather than on defense behaviour. `--control batch-probe` tests exactly that: it
+keeps only the defense-OFF windows — which are supposed to be interchangeable across arms — and
+labels them by *source batch*. Near 0.5 validates pooling; well above it invalidates the
+experiment.
+
+It returned **macro-AUC 0.9297**.
+
+The diagnosis inverted the conclusion. Every one of the 15 live base features is individually at
+**AUC 0.5000**, means agreeing to five decimal places. Comparing the paired rows directly
+explains why: the defense-off windows are **bit-identical** across the two batches — all 4,004
+of them, on all 17 columns. The cause is in the `runner.config` files. Both static batches ran
+`START_SEED=1`; ns-3 is deterministic, and with the defense off the code path does not depend on
+which defense was compiled in, so DCFM's and FPNT's `baseline` and `attack_only` windows are
+**the same simulations**. (The mobile batches used disjoint bases, 1 vs 2,000,001, and share no
+run at all.) [VERIFIED]
+
+So the probe asked the pipeline to separate 4,004 rows from their own exact duplicates — a task
+containing **zero information**. Twelve of thirteen models said so exactly:
+
+| Model | Macro-OvR AUC |
+|---|---:|
+| **Stacking** | **0.9297** |
+| ExtraTrees, HistGB, RandomForest, Dummy, AdaBoost, LightGBM, XGBoost, CatBoost | 0.5000 |
+| SVM_rbf | 0.4975 |
+| Ridge / LogisticRegression / MLP | 0.4892 / 0.4869 / 0.4865 |
+
+**`Stacking` scored 0.93 on a task with no signal**, and did it consistently — per-fold 0.931,
+0.942, 0.915, 0.944, 0.925, 0.911, 0.932, 0.931, 0.932, 0.934. The mechanism is duplicate rows
+on both sides of the split: `make_pipeline_for()` builds Stacking's inner CV with **`GroupKFold`**
+over the group labels, so `dcfm17:57` and `fpnt17:57` — the same row — land in different inner
+folds. A base estimator trained on one predicts the other's label *exactly wrong*, the
+meta-learner learns to invert it, and the inversion generalises because the duplicate structure
+holds in the test fold too. [VERIFIED]
+
+> This is the project's recurring lesson in a new place. The earlier artifacts — FPNT's byte
+> padding ([Step 43](#step-43)), the normalisation leak ([Step 34](#step-34)), DCFM's holographic
+> phantom ([Step 22](#step-22)) — were all *features* carrying something other than behaviour.
+> This one is the **estimator** manufacturing a signal from none, and no feature-level audit
+> would have caught it. It was caught only because the control had a **known answer**.
+
+The remedy is to deduplicate, which the loader now does by default; `--keep-duplicates`
+reproduces the leak for inspection and is not a valid setting for a reported result. It also
+balances the classes better than `class_weight` would have — **none 4,010 / dcfm 4,004 /
+fpnt 4,010**, 12,024 windows over 4,007 runs, against the 2:1:1 that keeping both copies gives.
+
+### C. Three-class identification — none vs DCFM vs FPNT
+
+12,024 windows over 4,007 runs, classes **none 4,010 / dcfm 4,004 / fpnt 4,010**, the default
+`metrics32` preset (16 base → 82 engineered), 2×5 grouped CV. The task is genuinely three-way:
+`Dummy` returns macro-OvR AUC **0.5000** and accuracy **0.3335** — exactly the 1/3 floor.
+
+| Model | Macro AUC | Accuracy | Macro F1 | MCC | AUC none | AUC dcfm | AUC fpnt |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **Stacking** | **0.9787** | **0.9135** | 0.9142 | 0.8726 | 0.9694 | 0.9752 | 0.9915 |
+| MLP | 0.9780 | 0.9118 | 0.9123 | 0.8703 | 0.9692 | 0.9730 | 0.9917 |
+| XGBoost | 0.9768 | 0.9035 | 0.9044 | 0.8582 | 0.9671 | 0.9736 | 0.9896 |
+| CatBoost | 0.9743 | 0.8991 | 0.8999 | 0.8515 | 0.9644 | 0.9711 | 0.9875 |
+| LightGBM / LogReg / HistGB | 0.9736–0.9723 | ~0.90 | | | | | |
+| RandomForest / ExtraTrees | 0.9618 / 0.9600 | 0.865 | | | | | |
+| SVM_rbf | 0.8538 | 0.7038 | 0.7046 | 0.5592 | | | |
+| Dummy | 0.5000 | 0.3335 | 0.1667 | 0.0000 | 0.5000 | 0.5000 | 0.5000 |
+
+**This one is not the Stacking pathology of §B.** There the leaked model stood alone at 0.93
+against a flat 0.5000; here MLP is 0.0007 behind it and eleven of thirteen models sit in
+0.96–0.98. Accuracy and balanced accuracy agree to four decimals (0.9135 / 0.9135) because
+deduplication left the classes almost exactly balanced, so both may be quoted without
+qualification. [VERIFIED]
+
+**The confusion matrix is where the result lives** (out-of-fold, row-normalised, best model):
+
+| actual ↓ / predicted → | none | dcfm | fpnt |
+|---|---:|---:|---:|
+| **none** | **0.941** | 0.026 | 0.033 |
+| **dcfm** | 0.132 | **0.859** | 0.009 |
+| **fpnt** | 0.056 | 0.007 | **0.937** |
+
+**The two defenses are essentially never mistaken for each other** — 0.9% and 0.7%. Every
+material error is a defense being missed and read as *none*, most of all DCFM at 13.2%. So the
+hard part of the task is detection, not discrimination: once a defense is seen at all, saying
+which one it is is close to free.
+
+### D. The byte ablation — one signature is behavioural, the other is not
+
+Dropping the five byte-derived columns ([Step 43](#step-43)'s set: `AvgTxPacketSize`,
+`AvgFlowThroughput`, `AvgTxBytesPerFlow`, `Throughput`, `FlowThroughputStd`) takes the base set
+16 → 11 and the engineered matrix 82 → 57 — again evidence that the composite gate stops a
+dropped base feature re-entering through a derived column.
+
+| Metric | Full | Byte-ablated | Δ |
+|---|---:|---:|---:|
+| Macro AUC | 0.9787 | 0.8477 | **−0.131** |
+| Accuracy | 0.9135 | 0.6785 | **−0.235** |
+| MCC | 0.8726 | 0.5317 | −0.341 |
+| AUC **dcfm** | 0.9752 | **0.9585** | **−0.017** |
+| AUC **fpnt** | 0.9915 | **0.7903** | **−0.201** |
+| Recall **dcfm** | 0.859 | **0.869** | **+0.010** |
+| Recall **fpnt** | 0.937 | **0.400** | **−0.537** |
+
+**The ablation separates the two defenses by kind, not by degree.** DCFM is untouched — its AUC
+moves 0.0167 and its recall actually *rises*. FPNT collapses: recall 0.937 → 0.400, and in the
+ablated confusion matrix **57.1% of FPNT windows are read as `none`**. [VERIFIED]
+
+This is [Step 43](#step-43)'s finding reproduced in a setting it was never fitted to. There, FPNT
+alone fell 0.9875 → 0.6027 under the same five-column ablation while the question of whether
+DCFM would behave the same way was untested. Here both defenses are in one model, competing for
+the same 57 columns, and only one of them needs the bytes.
+
+**What each defense is actually recognised by.** `TDR` — the composite
+`TcMessageRate × AverageAdvertisedLinksPerTCMessage` — is the top permutation-importance feature
+in **both** runs, at 0.3037 full and 0.3058 ablated: a pure control-plane quantity, unmoved by
+the ablation. Below it the ablated run promotes `AverageMprCount` (0.0828 → 0.1222),
+`NormalizedRoutingLoad` (0.0721) and `TcMessageRate` (0.0509), where the full run had two
+byte-derived columns in the top five (`log1p_AvgFlowThroughput` 0.0521, `AvgFlowThroughput`
+0.0362). That control-plane cluster is DCFM's documented mechanism — MPR structure and TC
+advertisement, the subject of *Open Questions* item 2 — and it is what survives.
+
+> **The honest headline is therefore two sentences, not one.** Passive multi-class
+> identification of *which* defense is running works, at **91.4% accuracy against a 33.3%
+> floor**. But that figure is carried by two different things: a real behavioural signature for
+> DCFM, and an implementation artefact for FPNT. Strip the artefact and the joint result falls to
+> **67.9%**, with DCFM intact and FPNT more often invisible than not. A defense that pads its
+> control messages is not *detectable*; it is *announcing itself*.
+
+`none`'s own recall falls 0.941 → 0.758 under ablation, and its errors move almost entirely to
+`fpnt` (21.2%). That is the same fact from the other side: without the padding, an FPNT network
+and an undefended network look alike.
+
+### Sources
+- Pipeline (new): {refml("defense_multiclass_v1.py")} — the multi-arm loader with cross-arm
+  deduplication and namespaced groups, `eval_fold_mc()` (macro-OvR + per-class metrics, `argmax`
+  decisions), `aggregate_mc()`, `export_latex_mc()`, `make_figures_mc()` (per-class OvR ROC, and
+  the confusion matrix raw + row-normalised), `compute_importance_mc()` (`scoring="roc_auc_ovr"`;
+  sklearn's `roc_auc` scorer is binary-only), and `--control batch-probe`
+- Pipeline (v4), **one additive line**: {refml(ML_PIPE)} — the `dcfm17` `DATASET_LAYOUT` entry.
+  No computational change; the pre-port state is tagged `v1.0-binary-baseline`
+- Driver: {refml("run_multiclass.sh")} — the three conditions in order, with the mandatory thread cap
+- Operating notes: {refml("RUNNING_ML.md")} — the seed-collision check and the `Stacking`
+  warning added here
+- Data staged: {refml(DML + "/dataset_final/dcfm_17", "dataset_final/dcfm_17/")}
+  (`static_canonical/`, `mobile_canonical/`) — the [Step 42](#step-42) DCFM campaign, copied from
+  the collaborator's `Pilot2k/` bundle; 2,002 runs static, 2,002 mobile
+- Outputs: {refml(DML + "/results/30_schema33/paper_v4", "paper_v4/")} —
+  `multiclass3_static/`, `multiclass3_static_nobytes/`, `multiclass3_static_batchprobe/`, each
+  with the standard v4 leaf files plus `confusion_matrix.csv`
+- Antecedents: [Step 43](#step-43) (the byte-padding ablation repeated here), [Step 42](#step-42)
+  (the DCFM campaign supplying one arm), [Step 41](#step-41) (the LISTENER-17 schema),
+  [Step 36](#step-36) (the cross-defense intersection this generalises)
 """)
 
 md("""
@@ -5918,6 +6132,8 @@ follows the logs.**
 | 7 | **The 2026-05-01 DCFM fix** | The fix that restored `defense_pdr` to 100% is **F5 — the two-consecutive-violations confirmation policy**. Rule 2 had already been disabled on 2026-04-16/17, for ANSN poisoning | "I removed Rule 2 from the contradiction rules" |
 | 8 | **Defense numbering** | `session_report_2026-05-01` calls GCOP "**Defense #1**"; other logs call it "**Defense 3**" | — |
 | 8b | **Canonical run length on the 17-schema** | [Step 41](#step-41)'s WIN-003 makes the neutral prologue conditional and puts canonical order at **400 s**; the four [Step 43](#step-43) batches ran **460 s** with an unconditional 60 s prologue, on branches reporting the same `HARNESS_VERSION 3.0.0` / `HEADER_VERSION 8`. So the [Step 42](#step-42) and [Step 43](#step-43) campaigns do not share a run length, and the version string is not a sufficient description of a tree. Likely the two defense branches carry the v6 collector on a pre-WIN-003 base; **the branch bases were never diffed** | — |
+| 8c | **Was `port-advisor-stages` merged to `main`?** | **Yes, but only up to `3a3c3b7`.** The collaborator merged it on 2026-09-02 (`3cde152`), bringing the six commits through `3a3c3b7` — the ported stages, `resolve_root()`, `--list-data`, the `MAX_JOBS` ceiling. The four later commits are **not** on `main`: `bc6f961`, `d6a476b`, `d13cc11`, `8859c1b`. A first check on 2026-09-04 reported the branch as wholly unmerged; that reading came from a **local `main` nine commits stale**, since `git branch --merged main` resolves the local ref and no `fetch` had been run. Fetching first is the lesson | The record said "merged 2026-09-02" and was substantially right; the [Step 45](#step-45) working session briefly contradicted it and was wrong |
+| 8d | **Do the DCFM and FPNT static batches share simulations?** | **Yes, entirely, for the defense-off half.** Both ran `START_SEED=1`; ns-3 is deterministic and the defense-off code path does not depend on which defense is compiled in, so all **4,004** defense-off windows are bit-identical across the two batches on all 17 columns ([Step 45](#step-45)). The mobile batches used disjoint bases (1 vs 2,000,001) and share nothing | The two campaigns were treated throughout [Step 42](#step-42) and [Step 43](#step-43) as independent datasets |
 
 ### C. Methodological items still outstanding
 | # | Item | Status |
@@ -5934,7 +6150,7 @@ follows the logs.**
 | 16 | **What carries FPNT's residual 0.60–0.62?** ([Step 43](#step-43)) | After the byte ablation the remaining signal sits on `NormalizedRoutingLoad` (*d* = −0.18 / −0.28) and `DataPacketRate` (*d* = +0.16 / +0.19) — more frames heard, a smaller share of them OLSR — with `TcMessageRate` flat, so it is not new control traffic. Plausibly a retransmission echo of the same padding. **The decisive test is one more ablation dropping those two as well; NOT RUN** |
 | 17 | **Does TRUST/static's signal have a carrier at all?** ([Step 43](#step-43)) | ROC-AUC 0.5585 with a CI excluding chance, yet every univariate |*d*| < 0.05 and the top permutation importance is 0.017 — apparently a multivariate aggregation of many *d* ≈ 0.01–0.05 effects that 8,040 windows suffice to detect. The grouped label-permutation test [Step 42](#step-42) ran on Watchdog would characterise the null directly. **NOT RUN** |
 | 18 | **`--feature-set all` was not used on the [Step 43](#step-43) campaigns** | Those four batches ran the default preset, so `RoutingOverheadBytesRatio` was silently dropped and the base width was **16 → 82**, against **17 → 87** in [Step 42](#step-42). That is the column which topped Watchdog/static importance there. A re-run at `--feature-set all` would make the two campaigns' un-ablated numbers directly comparable; §D of [Step 43](#step-43) shows the column is byte-derived and the ablation would have removed it anyway, but that argument does not cover the un-ablated results. **RESOLVED for FPNT ([Step 44](#step-44)):** the paired 16- vs 17-feature runs differ by 0.0001 in tuned AUC, share an identical anchor set, and score identically at the chosen K, so the preset cost FPNT nothing. **Open for TRUST**, which has not been re-run at `--feature-set all` |
-| 19 | **The four-defense LISTENER-17 table is blocked on two registry entries, not on new simulations** ([Step 44](#step-44)) | The `DATASET_LAYOUT` table has `fpnt17` and `trust17` but **no `dcfm17` or `watchdog17`**, so on the FPNT/TRUST machine those two defenses resolve only to their 33-feature trees — which is why the session log there concluded new simulations were needed. They are not: [Step 42](#step-42) generated 2,000-run LISTENER-17 datasets for both, on the other collaborator's machine. What is needed is two layout entries plus a run of the four-stage chain there. Unverified: whether the Step-42 trees satisfy this chain's loader contract |
+| 19 | **The four-defense LISTENER-17 table is blocked on two registry entries, not on new simulations** ([Step 44](#step-44)) | The `DATASET_LAYOUT` table has `fpnt17` and `trust17` but **no `dcfm17` or `watchdog17`**, so on the FPNT/TRUST machine those two defenses resolve only to their 33-feature trees — which is why the session log there concluded new simulations were needed. They are not: [Step 42](#step-42) generated 2,000-run LISTENER-17 datasets for both, on the other collaborator's machine. What is needed is two layout entries plus a run of the four-stage chain there. Unverified: whether the Step-42 trees satisfy this chain's loader contract. **RESOLVED — and the diagnosis was right.** `origin/main` carries **both** entries as of `dc8e203`, written by the collaborator against a `CAMPAIGN` environment variable: `"dcfm17": (os.path.join("dcfm", CAMPAIGN), "static", "mobile")` and the same for `"watchdog17"`, with `CAMPAIGN` defaulting to `Pilot2k` — so the layout points at the batch folders as delivered, without renaming. That commit also carries **DCFM-17 through the whole K-selection chain** (learning, HP search, universal set, K-sweep), which closes the second half of question 22 as well; those numbers are not yet read into this report. [Step 45](#step-45) independently added a `dcfm17` entry on the branch, unaware of this because the local `main` was stale — the collaborator's form supersedes it |
 | 20 | **Stage 2's full cross-domain sensitivity grid has never been run** ([Step 44](#step-44)) | Only the derivation path (`--skip-evaluation`) has been exercised, for any defense — it yields the anchor in minutes. The full grid is K × 6 methods × 2 variants × 3 classifiers × 20 seeds ≈ **23,000 cells**: an overnight job with `--resume`, and a sensitivity appendix rather than a result. `recommended_K_per_method.csv`, `summary.txt` and `optimal_k_curves.png` do not yet exist |
 | 21 | **A cross-defense transfer result exists and is undocumented** ([Step 44](#step-44)) | `scripts_for_17/transfer/` — `dcfm+fpnt → trust`, static and mobile — landed in the ML repository on 2026-09-02. It is the LISTENER-17 successor to [Step 36](#step-36)'s LODO experiment and bears directly on question 14, but its numbers have not been read into this report. **Needs its own step** |
 | 22 | **TRUST-17, DCFM and Watchdog have not been through the K-selection chain** ([Step 44](#step-44)) | TRUST-17 was started in the same invocation as FPNT-17 and interrupted; its partial artifacts were removed. Until at least TRUST-17 is run, the anchor/K-sweep result is a single-defense finding inside a four-defense study, and the `--classifier auto` design — which exists precisely because the best model differs per arm — has been exercised on one arm family only |
@@ -6564,7 +6780,9 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | {refml("k_sweep_universal4_v4.py")} | **Stage 3 — cross-domain K-sweep**, ported 518 → 775 lines. Unchanged: `split_source_60_20_20`, the source-train-only `StandardScaler`, the accuracy threshold sweep on source validation, `evaluate_seed`, the CatBoost-PVC ranking, `select_features_for_K`, incremental `to_csv` per K and the output column contract. **Two substantive changes:** the anchor is mandatory with **no built-in fallback** (`--universal-set` defaults to stage 2's artifact and hard-errors if absent; `_looks_like_path` stops a missing path being read as a one-element feature list), and `--classifier auto` picks the evaluation model **per arm** from that arm's `summary.csv`, with non-probabilistic families calibrated on the source *validation* partition. **Deliberately preserved:** the `S_in_domain` and `S_to_M` rows come from the same fitted model and are not independent |
 | {refml("select_optimal_k_v4.py")} | **Stage 4 — the one-SD parsimony rule**, ported 136 → 249 lines; the rule itself is byte-identical (score = mean of the two cross-domain accuracies; tolerance = one SD at the peak; choose the **smallest** K within tolerance, ties broken by lower asymmetry). Added: `--defense` resolves the sweep CSV from the layout, `--all` walks every completed sweep into a combined `optimal_k_all.csv` (the per-defense table a single-defense study had no reason to produce), and `features_at_optimal` is recorded in the JSON so the decision is self-contained |
 | {refml("make_results_doc.py")} → {refml("RESULTS_FPNT17.md")} | **The results document generator** ([Step 44](#step-44)). Reads the chain's own outputs and emits the per-variant tables — runs, tuned hyperparameters, anchor, K-sweep, the full optimal-K candidate table with per-K sd and asymmetry, the cross-run comparison in units of seed-to-seed sd, mean importance across all six methods, the per-method rank spread, the static/mobile side-by-side ranking, top-K overlap, and bootstrap stability at all four thresholds. **Nothing in it is transcribed by hand**, so it is the authority when a session log's prose disagrees with it — which happened once, over the K = 2 stability threshold. Re-run after any new sweep |
-| {refml("run_pipeline_v4.sh")}, {refml("qa_pipeline_v4.py")}, {refml("porting_audit.py")} → {refml("PORTING_NOTES.md")} | Driver and checkers ([Step 44](#step-44)). The driver runs the four stages in order for one defense, a comma list, or `all` — which asks `--list-data` which arms the machine holds, so each collaborator runs one identical command; stage 2 runs with `--skip-evaluation`, per-stage logs go to `run17_logs/`, and failures are collected rather than aborting the campaign. `qa_pipeline_v4.py` is a 50-assertion self-test in 11 groups that **skips cleanly** when an arm is absent, so it is meaningful on both setups. `porting_audit.py` AST-compares each ported function against the supervisor's original with docstrings stripped — **14 identical, 11 differing, 0 missing** — and is the artifact backing the paper's reuse claim |
+| {refml("defense_multiclass_v1.py")} | **Multi-class defense identification** ([Step 45](#step-45)) — the first module that asks *which* defense is running rather than *whether*. Imports v4's computational core unchanged (`engineer_features`, `FeatureSelector`, `build_models`, `make_pipeline_for`, `make_splits`, `_calibrate_prefit`, `nadeau_bengio_ci`, `resolve_root`, `resolve_features`, `Config`) and replaces only the layer where v4 is binary. Arms are `KEY:CLASS` pairs (`--arms dcfm17:dcfm fpnt17:fpnt`); defense-OFF windows of every arm collapse into one `none` class fixed at index 0. Groups are namespaced `<arm>:<run_id>` — 2,002 `run_id`s collide between the two batches. Cross-arm duplicates are dropped by default (the static arms share `START_SEED=1`, so their 4,004 defense-off windows are bit-identical); `--keep-duplicates` reproduces the leak that discovery came from and is not a reportable setting. `--control batch-probe` is the validity check, and the one that caught `Stacking` scoring 0.93 on a task with zero information. Adds `confusion_matrix.csv` to the standard v4 leaf outputs; `--mobility` takes one regime per invocation, and `--drop-features BYTES` expands to the five FPNT byte columns |
+| {refml("run_multiclass.sh")} | Driver for the above ([Step 45](#step-45)) — the three conditions of one mobility regime in order (batch-probe control, main, byte ablation), with the mandatory thread cap and a single feature preset across all three |
+| {refml("run_pipeline_v4.sh")}, {refml("qa_pipeline_v4.py")}, {refml("porting_audit.py")} → {refml("PORTING_NOTES.md")} | Driver and checkers ([Step 44](#step-44)). The driver runs the four stages in order for one defense, a comma list,or `all` — which asks `--list-data` which arms the machine holds, so each collaborator runs one identical command; stage 2 runs with `--skip-evaluation`, per-stage logs go to `run17_logs/`, and failures are collected rather than aborting the campaign. `qa_pipeline_v4.py` is a 50-assertion self-test in 11 groups that **skips cleanly** when an arm is absent, so it is meaningful on both setups. `porting_audit.py` AST-compares each ported function against the supervisor's original with docstrings stripped — **14 identical, 11 differing, 0 missing** — and is the artifact backing the paper's reuse claim |
 
 *Key scripts in `scripts_for_all_128/` (runs 1–3, Step 34, the Step-36 cross-defense tree, and the Step-37 un-normalised replication)*
 
@@ -6622,6 +6840,7 @@ Watchdog-33 raw run dirs live on the collaborator's machine; their numbers are f
 | `{S36}/` (**[Step 38](#step-38)** one-flow un-normalised DCFM) | `33_features/`, `32_features/`, `27_features/`, each with `results_static/` + `results_mobile/` (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`, `final_model.pkl`, `figures/`, and `permutation_test.json` on 27·static); `preflight_report/` (`integrity.csv`, `control_group.csv`, `pairing.csv`, `degeneracy_univariate.csv`, `effective_dimension.csv`, `baseline_provenance.csv`, `probe_1ch.log`, `probe_3ch.log`); `comparison/` (`comparison_best_model.csv`, `comparison_fixed_HistGB.csv`, `comparison_matrix.csv`, `config_parity.csv`, `importance_top.csv`, `acc_prev_vs_cur.csv`, `acc_prev_vs_cur_tables.txt`, `whatsapp_tables.txt`); `logs/` |
 | `scripts_for_17/results_dcfm_2000/`, `scripts_for_17/results_watchdog_2000/` (**[Step 42](#step-42)** — the first 17-observable campaigns) | One folder per campaign, each with `static/` + `mobile/` holding the standard v4 leaf outputs (`summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `summary.tex`; `final_model.pkl` and `figures/` are git-ignored), plus the tee’d stage logs `static_log.txt` / `mobile_log.txt`. `results_watchdog_2000/` additionally holds `static_perm/` + `mobile_perm/` — the 200-permutation grouped null for each regime. `results_watchdog_1000/` is the earlier, smaller Watchdog campaign on the same schema |
 | `{DML}/results/30_schema33/paper_v4/fpnt17_*`, `…/trust17_*` (**[Step 43](#step-43)** — the FPNT and TRUST 17-observable campaigns) | Six condition dirs written under the **v4 default results root**, not under `scripts_for_17/`: `fpnt17_{{static,mobile}}/`, `trust17_{{static,mobile}}/` and the byte-ablation pair `fpnt17_{{static,mobile}}_nobytes/`. Each holds `summary.csv`, `folds.csv`, `importance.csv`, `run_config.json`, `model_params.json` (the 2026-09-01 `dump_model_params` provenance dump), `summary.tex`, `final_model.pkl` and `figures/`. Source datasets are machine-local: master `~/olsr-batch/out/{{fpnt,trust}}_{{static,mobile}}/` (99 MB, with `runs.csv`, `probe.csv`, `defense_params.txt`, `runner.summary`, `runner.config`, `logs/`, `.runstate/seeds.ledger`), md5-identical working copy `{DML}/dataset_final/{{fpnt_17,trust_17}}/{{static,mobile}}_canonical/` — **git-ignored, on one machine, not backed up** |
+| `{DML}/results/30_schema33/paper_v4/multiclass3_static*` (**[Step 45](#step-45)** — multi-class defense identification) | Three condition dirs on the static LISTENER-17 arms: `multiclass3_static/` (none/dcfm/fpnt, default `metrics32` preset), `multiclass3_static_nobytes/` (the same minus the five FPNT byte-padding columns), and `multiclass3_static_batchprobe/` (the validity control — defense-OFF windows labelled by source batch, run with duplicates retained, which is what exposed the `Stacking` leak). Each holds the standard v4 leaf outputs plus **`confusion_matrix.csv`**, and `figures/` carries per-class one-vs-rest ROC curves and a confusion matrix in both raw and row-normalised form. Source data: {refml(DML + "/dataset_final/dcfm_17", "dataset_final/dcfm_17/")} + {refml(DML + "/dataset_final/fpnt_17", "dataset_final/fpnt_17/")} — **git-ignored**, and the DCFM copy came from the collaborator's `Pilot2k/` bundle in `~/Downloads`, which is its only other copy |
 | `{DML}/results/30_schema33/paper_v4/{{hp_search,feature_importance_sensitivity,k_sweep}}/` (**[Step 44](#step-44)** — the K-selection chain) | Per defense: `hp_search/<defense>/hp_search_config.json` plus `{{static,mobile}}/best_models.pkl` (git-ignored — large and reproducible); `feature_importance_sensitivity/<defense>/` with `universal_set.txt` (**the artifact stage 3 consumes**), `universal_set_provenance.json`, `universal_set_members.csv`, `stability_per_threshold.csv`, `fis_config.json` and `importance_cache/importance_<method>.pkl` (6 files, kept so a re-run resumes); `k_sweep/<defense>/` with `k_sweep_results.csv` (long form, `direction ∈ {{S_in_domain, M_in_domain, S_to_M, M_to_S}}`), `k_sweep_summary.txt`, `k_sweep_config.json` and `optimal_k.json`; plus `k_sweep/optimal_k_all.csv` from `--all`. The same three trees carry an **`_all17` suffix** for the 17-feature sensitivity run, so the 16-feature results stand unchanged. Only `fpnt17` is populated |
 
 ### Reproduction environment

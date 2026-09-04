@@ -96,7 +96,7 @@ python build_notebook.py        # writes Defense_Detection_Project_Report.ipynb
 
 ---
 
-## 4. Notebook structure (7 parts, 44 steps)
+## 4. Notebook structure (7 parts, 45 steps)
 
 Chronological. Each step is one `md(f"...")` cell.
 
@@ -106,7 +106,7 @@ Chronological. Each step is one `md(f"...")` cell.
 | **II — Defense Implementation** | 7–19 | The 4 defenses built & validated; harness bugs; F1–F5 methodology; attack fix; TRUST added |
 | **III — ML Campaign 1 (`defense_ml`)** | 20–25 | Dataset/task/leak-free pipeline; FPNT=TC-size artifact; DCFM=holographic phantom; the ladder 95→67→18; the tradeoff thesis; transfer/open-set/audit |
 | **IV — The Transition** | 26 | DCFM realigned to the paper + feature normalisation |
-| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–44 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed; **Steps 39–40 — two defense realignments to their source papers** (Watchdog → Baiad 2014/2016 + Marti 2000; TRUST → Adnane 2013), each with an oracle-column sampling defect found in the process. They are not ML steps and sit at the end of Part V only because that is where the chronology put them; **Step 41 — the single-listener rebuild**, which replaces the 128-feature schema with the supervisor's 17-observable LISTENER spec and applies four changesets (TRF-006 hop gate removed, WIN-003 conditional prologue, SL-2 single vantage, SL-3 new schema) to all four harnesses, unifies the oracle table across them, and records three defects found on the way. Also not an ML step; **Step 42 — the first campaigns on that schema**: a NaN-handling fix in `load_dataset()` (run-level `dropna` on `NormalizedRoutingLoad`, before the CV split), 2,000-run DCFM and Watchdog datasets in both mobility regimes, and the detectability↔efficacy tradeoff measured end to end (DCFM AUC 0.96 at 87% FAR and −16.8 pp idle cost; Watchdog AUC 0.59 at 0.5% FAR and zero idle cost), with a 200-permutation grouped null on both Watchdog regimes; **Step 43 — the other two defenses on the same schema**: four FPNT/TRUST batches (8,034 runs / 32,136 windows), the runner's acceptance criterion identified as a connectivity assertion (closing a Step-42 open item), FPNT's near-perfect 0.99 AUC shown to be a **byte-padding implementation artifact** and collapsed to 0.60/0.62 by a five-feature ablation (replicating Step 21 on an unrelated schema, and resolving Open Question 1 against Step 34's earlier reading), TRUST shown **dormant in static topologies** (defense effect −0.03%, ΔPDR −0.02 pp) so that mobility *exposes* reactive defenses rather than masking them, and all four defenses placed on one recovery-vs-AUC table. Two configuration differences from Step 42 are recorded there and matter when quoting across the two campaigns: **1 attacker not 2**, and the default feature preset (**16 → 82**) rather than `--feature-set all` (17 → 87); **Step 44 — the K-selection chain ported** from the supervisor's single-defense study under the rule *nothing may change a computed value*: four stages (HP search written from scratch, anchor derivation, cross-domain K-sweep, one-SD optimal-K rule), the reverted first attempt whose **silent anchor fallback** invalidated it, two substantive corrections (anchor derived per defense with no fallback; `--classifier auto` per arm), machine-portable dataset resolution with a hard 8-core ceiling, and FPNT-17 through the whole chain — a 6-feature all-byte anchor, **optimal K = 13 at 0.9300 cross-domain accuracy** with asymmetry 0.0026, Ridge beating tuned XGBoost and CatBoost, and `RoutingOverheadBytesRatio` shown **redundant rather than suppressed** (rank 9/17, same score at the chosen K). Fidelity is an artifact, not a claim: a 50-check self-test and an AST port audit (**14 identical, 11 differing, 0 missing**) |
+| **V — ML Campaign 2 (`defense_detection_v4`)** | 27–45 | 128-feature schema; dataset gen; Exp 1/2/3 (32/29/26/76 features); the normalisation hypothesis; Exp 2b DCFM-cluster ablation; Step 34 — normalisation leak confirmed from source, transfer test, and the final a-priori 21-feature set; Step 35 — generalisation experiments (mobility transfer, cross-defense matrix, LODO) **specified**; Step 36 — cross-defense intersection, the Step-35 prediction overturned; Step 37 — the normalisation hypothesis **measured** on a paired un-normalised DCFM dataset; Step 38 — traffic load varied (one CBR flow instead of three), 33/32/27 sets, the control-plane signature shown invariant and the static↔mobile inversion reversed; **Steps 39–40 — two defense realignments to their source papers** (Watchdog → Baiad 2014/2016 + Marti 2000; TRUST → Adnane 2013), each with an oracle-column sampling defect found in the process. They are not ML steps and sit at the end of Part V only because that is where the chronology put them; **Step 41 — the single-listener rebuild**, which replaces the 128-feature schema with the supervisor's 17-observable LISTENER spec and applies four changesets (TRF-006 hop gate removed, WIN-003 conditional prologue, SL-2 single vantage, SL-3 new schema) to all four harnesses, unifies the oracle table across them, and records three defects found on the way. Also not an ML step; **Step 42 — the first campaigns on that schema**: a NaN-handling fix in `load_dataset()` (run-level `dropna` on `NormalizedRoutingLoad`, before the CV split), 2,000-run DCFM and Watchdog datasets in both mobility regimes, and the detectability↔efficacy tradeoff measured end to end (DCFM AUC 0.96 at 87% FAR and −16.8 pp idle cost; Watchdog AUC 0.59 at 0.5% FAR and zero idle cost), with a 200-permutation grouped null on both Watchdog regimes; **Step 43 — the other two defenses on the same schema**: four FPNT/TRUST batches (8,034 runs / 32,136 windows), the runner's acceptance criterion identified as a connectivity assertion (closing a Step-42 open item), FPNT's near-perfect 0.99 AUC shown to be a **byte-padding implementation artifact** and collapsed to 0.60/0.62 by a five-feature ablation (replicating Step 21 on an unrelated schema, and resolving Open Question 1 against Step 34's earlier reading), TRUST shown **dormant in static topologies** (defense effect −0.03%, ΔPDR −0.02 pp) so that mobility *exposes* reactive defenses rather than masking them, and all four defenses placed on one recovery-vs-AUC table. Two configuration differences from Step 42 are recorded there and matter when quoting across the two campaigns: **1 attacker not 2**, and the default feature preset (**16 → 82**) rather than `--feature-set all` (17 → 87); **Step 44 — the K-selection chain ported** from the supervisor's single-defense study under the rule *nothing may change a computed value*: four stages (HP search written from scratch, anchor derivation, cross-domain K-sweep, one-SD optimal-K rule), the reverted first attempt whose **silent anchor fallback** invalidated it, two substantive corrections (anchor derived per defense with no fallback; `--classifier auto` per arm), machine-portable dataset resolution with a hard 8-core ceiling, and FPNT-17 through the whole chain — a 6-feature all-byte anchor, **optimal K = 13 at 0.9300 cross-domain accuracy** with asymmetry 0.0026, Ridge beating tuned XGBoost and CatBoost, and `RoutingOverheadBytesRatio` shown **redundant rather than suppressed** (rank 9/17, same score at the chosen K). Fidelity is an artifact, not a claim: a 50-check self-test and an AST port audit (**14 identical, 11 differing, 0 missing**); **Step 45 — the first multi-class run**: `defense_multiclass_v1.py` asks *which* defense rather than *whether*, importing v4's core unchanged and replacing only the binary scoring layer. Its batch-probe control caught `Stacking` scoring **0.9297 on a task with zero information** (the two static arms share `START_SEED=1`, so their 4,004 defense-off windows are bit-identical); twelve of thirteen models correctly returned 0.5000. Deduplicated, three-class identification reaches **91.4% accuracy against a 33.3% floor** with the defenses almost never confused for each other — but the byte ablation splits them by kind: DCFM's AUC moves 0.017 while FPNT's falls 0.201 and its recall 0.937 → 0.400 |
 | **VI — Synthesis** | — | Open questions; planned full-scale campaign |
 | **VII — Annotated Source-File Guide** | — | Per-file explanations (NS-3 + both ML pipelines); then References; File Index |
 
@@ -378,7 +378,19 @@ Three things to know before quoting or reproducing these:
 
 ### 7.4 The K-selection chain — four new stages at the ML repo root (Step 44)
 
-Added on branch `port-advisor-stages`, merged to `main` 2026-09-02. These are **ported from the
+Added on branch `port-advisor-stages`, merged to `main` 2026-09-02 (merge commit `3cde152`) —
+but **only up to `3a3c3b7`**. The four commits after it are still branch-only: `bc6f961` (the
+17-feature sensitivity run), `d6a476b` (session report), `d13cc11` (pipeline reference) and
+`8859c1b` (`RESULTS_FPNT17.md`). The ported stages themselves are on `main`.
+
+> ⚠️ **`git fetch` before you reason about any of this.** On 2026-09-04 a check with
+> `git branch --merged main` reported the branch as wholly unmerged and that finding was written
+> into the guide and the report. It was wrong: that command resolves the **local** `main`, which
+> was nine commits behind `origin/main`. The same stale ref hid the fact that `origin/main`
+> already carried `dcfm17` and `watchdog17` entries plus DCFM-17's full K-selection run. Nothing
+> about branch state in this guide should be trusted without a fetch first.
+
+These are **ported from the
 supervisor's single-defense study**, and the port is the point: the paper claims it reuses his
 pipeline, so the adaptation policy was **nothing may change a computed value** — estimators,
 splits, metrics, ranking and selection rules stay as written; docstrings, CLI shape, output paths
@@ -423,3 +435,42 @@ Four things to know before documenting or re-running any of it:
   have **no `DATASET_LAYOUT` entries at all**, even though [Step 42] generated LISTENER-17 data for
   both on the other collaborator's machine. The blocker is two layout entries plus a run there —
   **not** new simulations, whatever the session log on the FPNT/TRUST machine concluded.
+  *(Closed: `origin/main` has carried BOTH entries since `dc8e203`, keyed on a `CAMPAIGN` env var
+  — plus DCFM-17 through the whole chain. Fetch before trusting any claim here; see §7.5.)*
+
+
+### 7.5 Multi-class defense identification — `defense_multiclass_v1.py` (Step 45)
+
+New with Step 45 (2026-09-04), at the ML repo root on branch `port-advisor-stages`. This is
+the first module in the project that asks **which** defense is running rather than *whether*
+one is. Four things about it matter when documenting or extending it:
+
+- **It does not modify `defense_detection_v4.py`.** It imports v4's computational core —
+  `engineer_features`, `FeatureSelector`, `build_models`, `make_pipeline_for`, `make_splits`,
+  `_calibrate_prefit`, `nadeau_bengio_ci`, `resolve_root`, `resolve_features`, `Config` — and
+  replaces only the scoring and reporting layer, which is where every binary assumption in v4
+  lives (`predict_proba(...)[:, 1]`, the tuned decision threshold, `roc_curve`, `f1_score`'s
+  `average="binary"` default, and a confusion matrix hard-labelled `["off","on"]`). The one
+  change to v4 is a **single additive `DATASET_LAYOUT` line** for `dcfm17`, which cannot alter
+  any computed value. So every number in Steps 42–44 remains reproducible; the state they were
+  produced from is tagged **`v1.0-binary-baseline`**.
+- **Arms are given as `KEY:CLASS` pairs**, e.g. `--arms dcfm17:dcfm fpnt17:fpnt`. Windows whose
+  defense is OFF (the `baseline` and `attack_only` scenarios of *either* arm) all collapse into
+  one `none` class, which is fixed at index 0; the defense classes follow in CLI order. The
+  resulting 2:1:1 imbalance is deliberate and handled by `class_weight="balanced"` — quote
+  balanced accuracy, macro-F1 and MCC alongside AUC, never AUC alone.
+- **`run_id` collides across batches** — every arm numbers its runs from 2, and DCFM and FPNT
+  overlap in 2,002 of them — so groups are namespaced `<arm>:<run_id>` before pooling. Without
+  that, `StratifiedGroupKFold` would put windows from two different defenses in one group.
+- **`--control batch-probe` is the validity check, and it must be run first.** It keeps only the
+  defense-OFF windows and relabels them by *source batch*. Because those windows are supposed to
+  be interchangeable across arms, the task is impossible by construction — so a macro-AUC near
+  0.5 validates pooling, and anything well above it means the model can fingerprint the batch
+  and every multi-class number is confounded. Treat a failed probe as a stop condition, not a
+  caveat.
+
+Outputs go to `{DML}/results/30_schema33/paper_v4/multiclass3_<mobility>[_suffix]/`, with the
+standard v4 leaf files plus one addition, `confusion_matrix.csv`. Two conventions differ from
+v4: `--mobility` takes **one** regime per invocation (there is no `both`, precisely because v4's
+`both` silently ignores `--results-dir`), and `--drop-features BYTES` expands to the five FPNT
+byte-padding columns rather than requiring them to be typed out.
