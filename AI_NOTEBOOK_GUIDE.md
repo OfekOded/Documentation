@@ -469,6 +469,20 @@ one is. Four things about it matter when documenting or extending it:
   and every multi-class number is confounded. Treat a failed probe as a stop condition, not a
   caveat.
 
+The `dcfm17` data lives at `dataset_final/dcfm/Pilot2k/{static,mobile}` — the `CAMPAIGN`-keyed
+layout that was already on `main`. Do not confuse it with the sibling
+`dataset_final/dcfm/{static,mobile}_{canonical,mixed}`, a **different and older** campaign
+(10,000 runs, seeded 8.0e8/1.1e9, 2026-06-11, 33/95-feature schema).
+
+> ⚠️ **After merging a branch that touched `DATASET_LAYOUT` (or `METRICS`), check for repeated
+> keys.** Two `dcfm17` entries on different lines merged **cleanly** — git saw no conflict — and
+> a Python dict literal with a repeated key silently keeps the **last** one, leaving the other as
+> dead code that still looks authoritative. A clean merge is not evidence of a correct one. Verify
+> what actually resolves:
+> ```bash
+> python -c "import defense_detection_v4 as v; print(v.DATASET_LAYOUT['dcfm17'])"
+> ```
+
 Outputs go to `{DML}/results/30_schema33/paper_v4/multiclass3_<mobility>[_suffix]/`, with the
 standard v4 leaf files plus one addition, `confusion_matrix.csv`. Two conventions differ from
 v4: `--mobility` takes **one** regime per invocation (there is no `both`, precisely because v4's
